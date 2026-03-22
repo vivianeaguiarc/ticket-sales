@@ -24,7 +24,7 @@ const swaggerOptions: Options = {
       { name: 'Purchases', description: 'Operações de compra' }
     ]
   },
-  apis: ['./src/routes/**/*.ts', './src/main/**/*.ts']
+  apis: ['./src/routes/**/*.ts', './src/main/**/*.ts', './src/app.ts']
 }
 
 export const swaggerSpec = swaggerJSDoc(swaggerOptions)
