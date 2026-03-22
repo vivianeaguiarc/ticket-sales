@@ -14,17 +14,9 @@ const swaggerOptions: Options = {
         url: 'http://localhost:3000',
         description: 'Servidor local'
       }
-    ],
-    tags: [
-      { name: 'Health', description: 'Verificação de saúde da API' },
-      { name: 'Partners', description: 'Operações de parceiros' },
-      { name: 'Customers', description: 'Operações de clientes' },
-      { name: 'Events', description: 'Operações de eventos' },
-      { name: 'Tickets', description: 'Operações de tickets' },
-      { name: 'Purchases', description: 'Operações de compra' }
     ]
   },
-  apis: ['./src/routes/**/*.ts', './src/main/**/*.ts', './src/app.ts']
+  apis: ['./src/app.ts']
 }
 
 export const swaggerSpec = swaggerJSDoc(swaggerOptions)

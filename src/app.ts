@@ -7,26 +7,17 @@ const app = express()
 
 app.use(express.json())
 
-/**
- * @openapi
- * /:
- *   get:
- *     tags:
- *       - Health
- *     summary: Verifica se a API está online
- *     responses:
- *       200:
- *         description: API online
- *         content:
- *           text/plain:
- *             schema:
- *               type: string
- *               example: Hello, Ticket Sales API!
- */
 app.get('/', (_req, res) => {
-  res.send('Hello, Ticket Sales API!')
+  res.send('Hello World!')
+})
+
+app.get('/events', (_req, res) => {
+  res.json([{ id: 1, name: 'Tech Conference' }])
 })
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
-export { app }
+app.listen(3000, () => {
+  console.log('🚀 Server running on http://localhost:3000')
+  console.log('📚 Swagger on http://localhost:3000/docs')
+})
