@@ -3,7 +3,20 @@
   "version": "1.0.0",
   "description": "Ticket sales API with strong code quality setup.",
   "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main/index.ts",
+    "clean": "rimraf dist",
+    "build": "pnpm clean && tsc",
+    "start": "node dist/main/index.js",
+    "typecheck": "tsc --noEmit"
+  },
   "packageManager": "pnpm@10.32.1",
   "author": "Viviane Aguiar",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24",
+    "rimraf": "6.1.3",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
 }
