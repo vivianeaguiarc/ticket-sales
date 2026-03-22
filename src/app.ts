@@ -11,8 +11,10 @@ app.get('/', (_req, res) => {
   res.send('Hello World!')
 })
 
-app.get('/events', (_req, res) => {
-  res.json([{ id: 1, name: 'Tech Conference' }])
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body
+  console.log(`Login attempt with email: ${email} and password: ${password}`)
+  res.send({ message: 'Login successful' })
 })
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
