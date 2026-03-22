@@ -1,34 +1,36 @@
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import simpleImportSort from "eslint-plugin-simple-import-sort";
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import simpleImportSort from 'eslint-plugin-simple-import-sort'
+import eslintConfigPrettier from 'eslint-config-prettier'
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "coverage/**"],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**']
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["**/*.ts"],
+    files: ['**/*.ts'],
     languageOptions: {
       parserOptions: {
-        project: false,
-      },
+        project: false
+      }
     },
     plugins: {
-      "simple-import-sort": simpleImportSort,
+      'simple-import-sort': simpleImportSort
     },
     rules: {
-      "simple-import-sort/imports": "error",
-      "simple-import-sort/exports": "error",
-      "@typescript-eslint/no-unused-vars": [
-        "error",
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-        },
-      ],
-    },
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_'
+        }
+      ]
+    }
   },
-];
+  eslintConfigPrettier
+]
