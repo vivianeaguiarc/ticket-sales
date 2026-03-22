@@ -5,3 +5,56 @@ Content-Type: application/json
     "email": "testuser@example.com",
     "password": "testpassword"
 }
+
+### Criação de um parceiro
+POST http://localhost:3000/partners
+Content-Type: application/json  
+
+{
+    "name": "Test Partner 1",
+    "email": "testuser@example.com",
+    "password": "testpassword",
+    "company_name": "Test Company"
+}
+
+### Listagem de todos os parceiros
+POST http://localhost:3000/customers
+Content-Type: application/json  
+
+{
+    "name": "Test Customer 1",
+    "email": "testcustomer@example.com",
+    "password": "testpassword",
+    "address": "123 Test St",
+    "phone": "123-456-7890"
+}
+
+### Eventos
+POST http://localhost:3000/events
+Content-Type: application/json  
+
+{
+    "name": "Test Event 1",
+    "description": "This is a test event.",
+    "date": "2024-07-01T10:00:00Z",
+    "location": "Test Venue",
+} 
+### Listagem de todos os eventos
+GET http://localhost:3000/events
+
+### Criação do evento pelo o parceiro
+POST http://localhost:3000/partners/events
+Content-Type: application/json  
+
+{
+    "name": "Test Event 1",
+    "description": "This is a test event.",
+    "date": "2024-07-01T10:00:00Z",
+    "location": "Test Venue",
+} 
+### Listagem dos eventos criados pelo parceiro
+GET http://localhost:3000/partners/events
+
+### Listagem dos detalhes do evento criado pelo parceiro
+GET http://localhost:3000/partners/events/1
+
