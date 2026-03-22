@@ -32,6 +32,8 @@
   "author": "Viviane Aguiar",
   "license": "ISC",
   "devDependencies": {
+    "@commitlint/cli": "20.5.0",
+    "@commitlint/config-conventional": "20.5.0",
     "@eslint/js": "10.0.1",
     "@types/node": "^24",
     "@vitest/coverage-v8": "4.1.0",
