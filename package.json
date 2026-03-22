@@ -1,0 +1,9 @@
+{
+  "name": "ticket-sales",
+  "version": "1.0.0",
+  "description": "Ticket sales API with strong code quality setup.",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "author": "Viviane Aguiar",
+  "license": "ISC"
+}
