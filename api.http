@@ -1,20 +1,20 @@
 POST http://localhost:3000/auth/login
-Content-Type: application/json  
+Content-Type: application/json
 
 {
-    "email": "testuser@example.com",
-    "password": "testpassword"
+  "email": "testuser1o@example.com",
+  "password": "testpassword"
 }
 
 ### Criação de um parceiro
 POST http://localhost:3000/partners
-Content-Type: application/json  
+Content-Type: application/json
 
 {
-    "name": "Test Partner 4",
-    "email": "testuser4xpto@example.com",
-    "password": "testpassword",
-    "company_name": "Test Company"
+  "name": "Test Partner 1",
+  "email": "testuser1o@example.com",
+  "password": "testpassword",
+  "company_name": "Test Company"
 }
 
 ### Listagem de todos os parceiros
@@ -22,8 +22,8 @@ POST http://localhost:3000/customers
 Content-Type: application/json  
 
 {
-    "name": "Test Customer 1",
-    "email": "testcustomer@example.com",
+    "name": "Test Customer 2",
+    "email": "testcustomer2@example.com",
     "password": "testpassword",
     "address": "123 Test St",
     "phone": "123-456-7890"

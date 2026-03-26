@@ -21,6 +21,7 @@ app.listen(3000, async () => {
     await connection.execute('TRUNCATE TABLE customers')
     await connection.execute('TRUNCATE TABLE partners')
     await connection.execute('TRUNCATE TABLE users')
+    await connection.execute('SET FOREIGN_KEY_CHECKS = 1')
 
     console.log('🧹 Database cleaned (tables truncated)')
     console.log('🚀 Server running on http://localhost:3000')
