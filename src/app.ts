@@ -15,8 +15,7 @@ function createConnextion() {
   })
 }
 
-const app = express()
-
+export const app = express()
 app.use(express.json())
 
 app.get('/', (_req, res) => {
@@ -36,16 +35,13 @@ app.post('/partners', async (_req, res) => {
 
   try {
     const createdAt = new Date()
-
     const hashedPassword = bcrypt.hashSync(password, 10)
-
     const [userResult] = await connection.execute<mysql.ResultSetHeader>(
       'INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)',
       [name, email, hashedPassword, createdAt]
     )
 
     const userId = userResult.insertId
-
     const [partnerResult] = await connection.execute<mysql.ResultSetHeader>(
       'INSERT INTO partners (user_id, company_name, created_at) VALUES (?, ?, ?)',
       [userId, company_name, createdAt]
@@ -98,8 +94,3 @@ app.get('/partners/events/:eventId', (req, res) => {
 })
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
-
-app.listen(3000, () => {
-  console.log('🚀 Server running on http://localhost:3000')
-  console.log('📚 Swagger on http://localhost:3000/docs')
-})
