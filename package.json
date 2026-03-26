@@ -4,7 +4,7 @@
   "description": "Ticket sales API with strong code quality setup.",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/app.ts",
+    "dev": "tsx watch src/server.ts",
     "clean": "rimraf dist",
     "build": "pnpm clean && tsc",
     "start": "node dist/main/index.js",

@@ -94,3 +94,5 @@ app.get('/partners/events/:eventId', (req, res) => {
 })
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
