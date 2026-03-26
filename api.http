@@ -7,7 +7,7 @@ Content-Type: application/json
 }
 
 ### Criação de um parceiro
-POST http://localhost:3000/partners
+POST http://localhost:3000/partners/register
 Content-Type: application/json
 
 {
@@ -18,7 +18,7 @@ Content-Type: application/json
 }
 
 ### Listagem de todos os parceiros
-POST http://localhost:3000/customers
+POST http://localhost:3000/customers/register
 Content-Type: application/json  
 
 {
@@ -31,7 +31,8 @@ Content-Type: application/json
 
 ### Eventos
 POST http://localhost:3000/events
-Content-Type: application/json  
+Content-Type: application/json 
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJ0ZXN0dXNlcjFvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzc0NTY0NzQ2LCJleHAiOjE3NzQ1NjgzNDZ9.dyYCULZvoG-r3duogVPzyDI9rjJ2bfJpz_RXV8IhWnY
 
 {
     "name": "Test Event 1",
