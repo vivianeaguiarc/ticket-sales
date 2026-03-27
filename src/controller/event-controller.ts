@@ -1,43 +1,23 @@
 import { Router } from 'express'
-import * as mysql from 'mysql2/promise'
 
-import { createConnection } from '../database.js'
+import { EventService } from '../services/event-service.js'
 
 export const eventsRoutes = Router()
 
 eventsRoutes.get('/', async (_req, res) => {
-  const connection = await createConnection()
-  try {
-    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>('SELECT * FROM events')
-    const event = eventRows.length ? eventRows[0] : null
-    if (!event) {
-      res.status(404).json({ message: 'Event not found' })
-      return
-    }
-    res.json(event)
-  } finally {
-    await connection.end()
-  }
+  const eventService = new EventService()
+  const events = await eventService.findAll()
+  res.json(events)
 })
 
 eventsRoutes.get('/:eventId', async (req, res) => {
   const { eventId } = req.params
+  const eventService = new EventService()
+  const event = await eventService.findById(+eventId)
 
-  const connection = await createConnection()
-
-  try {
-    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
-      'SELECT * FROM events WHERE id = ?',
-      [eventId]
-    )
-    const event = eventRows.length ? eventRows[0] : null
-    if (!event) {
-      res.status(404).json({ message: 'Event not found' })
-      return
-    }
-
-    res.json(event)
-  } finally {
-    await connection.end()
+  if (!event) {
+    res.status(404).json({ message: 'Event not found' })
+    return
   }
+  res.json(event)
 })
