@@ -183,9 +183,44 @@ app.post('/customers/register', async (_req, res) => {
 app.post('/events', (_req, res) => {
   return res.status(501).send({ message: 'Route not implemented yet' })
 })
+app.post('/partners/events', async (req, res) => {
+  const { name, description, date, location } = req.body
 
-app.get('/events', (_req, res) => {
-  return res.status(501).send({ message: 'Route not implemented yet' })
+  const userId = req.user!.id
+
+  const connection = await createConnection()
+
+  try {
+    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM partners WHERE user_id = ?',
+      [userId]
+    )
+
+    const partner = rows.length ? rows[0] : null
+
+    if (!partner) {
+      res.status(403).json({ message: 'Not authorized' })
+      return
+    }
+    const eventDate = new Date(date)
+    const createdAt = new Date()
+    const [eventResult] = await connection.execute<mysql.ResultSetHeader>(
+      'INSERT INTO events (partner_id, name, description, date, location, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [partner.id, name, description, eventDate, location, createdAt]
+    )
+
+    return res.status(201).json({
+      id: eventResult.insertId,
+      partner_id: partner.id,
+      name,
+      description,
+      date: eventDate,
+      location,
+      created_at: createdAt
+    })
+  } finally {
+    await connection.end()
+  }
 })
 
 app.get('/events/:eventId', (req, res) => {

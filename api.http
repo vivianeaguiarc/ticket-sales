@@ -1,12 +1,5 @@
-POST http://localhost:3000/auth/login
-Content-Type: application/json
-
-{
-  "email": "testuser1o@example.com",
-  "password": "testpassword"
-}
-
-### Criação de um parceiro
+###
+# @name registerPartner1
 POST http://localhost:3000/partners/register
 Content-Type: application/json
 
@@ -17,45 +10,76 @@ Content-Type: application/json
   "company_name": "Test Company"
 }
 
-### Listagem de todos os parceiros
-POST http://localhost:3000/customers/register
-Content-Type: application/json  
+###
+# @name loginPartner1
+POST http://localhost:3000/auth/login
+Content-Type: application/json
 
 {
-    "name": "Test Customer 2",
-    "email": "testcustomer2@example.com",
-    "password": "testpassword",
-    "address": "123 Test St",
-    "phone": "123-456-7890"
+  "email": "testuser1o@example.com",
+  "password": "testpassword"
 }
+
+###
+@tokenPartner1 = {{loginPartner1.response.body.token}}
+
+###
+# @name registerCustomer1
+POST http://localhost:3000/customers/register
+Content-Type: application/json
+
+{
+  "name": "Test Customer 2",
+  "email": "testcustomer2@example.com",
+  "password": "testpassword",
+  "address": "123 Test St",
+  "phone": "123-456-7890"
+}
+
+###
+# @name loginCustomer1
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "testcustomer2@example.com",
+  "password": "testpassword"
+}
+
+###
+@tokenCustomer1 = {{loginCustomer1.response.body.token}}
 
 ### Eventos
 POST http://localhost:3000/events
-Content-Type: application/json 
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJ0ZXN0dXNlcjFvQGV4YW1wbGUuY29tIiwiaWF0IjoxNzc0NTY0NzQ2LCJleHAiOjE3NzQ1NjgzNDZ9.dyYCULZvoG-r3duogVPzyDI9rjJ2bfJpz_RXV8IhWnY
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
 
 {
-    "name": "Test Event 1",
-    "description": "This is a test event.",
-    "date": "2024-07-01T10:00:00Z",
-    "location": "Test Venue",
-} 
+  "name": "Test Event 1",
+  "description": "This is a test event.",
+  "date": "2027-07-01T10:00:00Z",
+  "location": "Test Venue"
+}
+
 ### Listagem de todos os eventos
 GET http://localhost:3000/events
 
-### Criação do evento pelo o parceiro
+### Criação do evento pelo parceiro
 POST http://localhost:3000/partners/events
-Content-Type: application/json  
+Content-Type: application/json
+Authorization: Bearer {{tokenPartner1}}
 
 {
-    "name": "Test Event 1",
-    "description": "This is a test event.",
-    "date": "2024-07-01T10:00:00Z",
-    "location": "Test Venue",
-} 
+  "name": "Test Event 1",
+  "description": "This is a test event.",
+  "date": "2027-07-01T10:00:00Z",
+  "location": "Test Venue"
+}
+
 ### Listagem dos eventos criados pelo parceiro
 GET http://localhost:3000/partners/events
+Authorization: Bearer {{tokenPartner1}}
 
 ### Listagem dos detalhes do evento criado pelo parceiro
 GET http://localhost:3000/partners/events/1
-
+Authorization: Bearer {{tokenPartner1}}
