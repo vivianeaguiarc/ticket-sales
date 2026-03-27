@@ -180,9 +180,32 @@ app.post('/customers/register', async (_req, res) => {
   }
 })
 
-app.post('/events', (_req, res) => {
-  return res.status(501).send({ message: 'Route not implemented yet' })
-})
+// app.post('/events', async (req, res) => {
+//   const { name, description, date, location } = req.body
+
+//   const connection = await createConnection()
+
+//   try {
+//     const eventDate = new Date(date)
+//     const createdAt = new Date()
+
+//     const [eventResult] = await connection.execute<mysql.ResultSetHeader>(
+//       'INSERT INTO events (name, description, date, location, created_at) VALUES (?, ?, ?, ?, ?)',
+//       [name, description, eventDate, location, createdAt]
+//     )
+
+//     return res.status(201).json({
+//       id: eventResult.insertId,
+//       name,
+//       description,
+//       date: eventDate,
+//       location,
+//       created_at: createdAt
+//     })
+//   } finally {
+//     await connection.end()
+//   }
+// })
 app.post('/partners/events', async (req, res) => {
   const { name, description, date, location } = req.body
 
@@ -223,22 +246,97 @@ app.post('/partners/events', async (req, res) => {
   }
 })
 
-app.get('/events/:eventId', (req, res) => {
-  const { eventId } = req.params
-  console.log(`Fetching details for event ID: ${eventId}`)
-
-  return res.send({ message: `Details for event ID: ${eventId}` })
+app.get('/events', async (req, res) => {
+  const connection = await createConnection()
+  try {
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>('SELECT * FROM events')
+    const event = eventRows.length ? eventRows[0] : null
+    if (!event) {
+      res.status(404).json({ message: 'Event not found' })
+      return
+    }
+    res.json(event)
+  } finally {
+    await connection.end()
+  }
 })
-
-app.get('/partners/events', (_req, res) => {
-  return res.status(501).send({ message: 'Route not implemented yet' })
-})
-
-app.get('/partners/events/:eventId', (req, res) => {
+app.get('/events/:eventId', async (req, res) => {
   const { eventId } = req.params
-  console.log(`Fetching details for event ID: ${eventId}`)
 
-  return res.send({ message: `Details for event ID: ${eventId}` })
+  const connection = await createConnection()
+
+  try {
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM events WHERE id = ?',
+      [eventId]
+    )
+    const event = eventRows.length ? eventRows[0] : null
+    if (!event) {
+      res.status(404).json({ message: 'Event not found' })
+    }
+
+    res.json(eventRows)
+  } finally {
+    await connection.end()
+  }
+})
+app.get('/partners/events', async (_req, res) => {
+  const userId = _req.user!.id
+
+  const connection = await createConnection()
+
+  try {
+    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM partners WHERE user_id = ?',
+      [userId]
+    )
+
+    const partner = rows.length ? rows[0] : null
+
+    if (!partner) {
+      res.status(403).json({ message: 'Not authorized' })
+      return
+    }
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM events WHERE partner_id = ?',
+      [partner.id]
+    )
+    res.json(eventRows)
+  } finally {
+    await connection.end()
+  }
+})
+app.get('/partners/events/:eventId', async (req, res) => {
+  const userId = req.user!.id
+
+  const connection = await createConnection()
+
+  try {
+    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM partners WHERE user_id = ?',
+      [userId]
+    )
+
+    const partner = rows.length ? rows[0] : null
+
+    if (!partner) {
+      res.status(403).json({ message: 'Not authorized' })
+      return
+    }
+    const { eventId } = req.params
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
+      'SELECT * FROM events WHERE partner_id = ? and id = ?',
+      [partner.id, eventId]
+    )
+    const event = eventRows.length ? eventRows[0] : null
+    if (!event) {
+      res.status(404).json({ message: 'Event not found' })
+      return
+    }
+    res.json(event)
+  } finally {
+    await connection.end()
+  }
 })
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
