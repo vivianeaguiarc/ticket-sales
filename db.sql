@@ -57,3 +57,20 @@ CREATE TABLE IF NOT EXISTS `events` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `tickets` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `location` VARCHAR(45) NOT NULL,
+  `price` DECIMAL(10,2) NOT NULL,
+  `status` ENUM('available', 'sold') NOT NULL,
+  `created_at` TIMESTAMP NOT NULL,
+  `event_id` INT NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_tickets_events1_idx` (`event_id` ASC) VISIBLE,
+  CONSTRAINT `fk_tickets_events1`
+    FOREIGN KEY (`event_id`)
+    REFERENCES `events` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB;

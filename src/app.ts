@@ -6,6 +6,7 @@ import { authRoutes } from './controller/auth-controller.js'
 import { customerRoutes } from './controller/customer-controller.js'
 import { eventsRoutes } from './controller/event-controller.js'
 import { partnerRoutes } from './controller/partner-controller.js'
+import { ticketRoutes } from './controller/ticket-controller.js'
 import { swaggerSpec } from './docs/swagger.js'
 import { UserService } from './services/user-service.js'
 
@@ -54,5 +55,6 @@ app.use('/auth', authRoutes)
 app.use('/partners', partnerRoutes)
 app.use('/customers', customerRoutes)
 app.use('/events', eventsRoutes)
+app.use('/partners/events', ticketRoutes)
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))

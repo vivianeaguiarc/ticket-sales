@@ -2,19 +2,25 @@ import { app } from './app.js'
 import { Database } from './database.js'
 
 app.listen(3000, async () => {
-  try {
-    const connection = Database.getInstance()
+  let dbConnection
 
-    await connection.execute('SET FOREIGN_KEY_CHECKS = 0')
-    await connection.execute('TRUNCATE TABLE events')
-    await connection.execute('TRUNCATE TABLE customers')
-    await connection.execute('TRUNCATE TABLE partners')
-    await connection.execute('TRUNCATE TABLE users')
-    await connection.execute('SET FOREIGN_KEY_CHECKS = 1')
+  try {
+    const pool = Database.getInstance()
+    dbConnection = await pool.getConnection()
+
+    await dbConnection.execute('SET FOREIGN_KEY_CHECKS = 0')
+    await dbConnection.execute('TRUNCATE TABLE tickets')
+    await dbConnection.execute('TRUNCATE TABLE events')
+    await dbConnection.execute('TRUNCATE TABLE customers')
+    await dbConnection.execute('TRUNCATE TABLE partners')
+    await dbConnection.execute('TRUNCATE TABLE users')
+    await dbConnection.execute('SET FOREIGN_KEY_CHECKS = 1')
 
     console.log('🧹 Database cleaned (tables truncated)')
     console.log('🚀 Server running on http://localhost:3000')
   } catch (error) {
     console.error('❌ Error during server startup:', error)
+  } finally {
+    if (dbConnection) dbConnection.release()
   }
 })

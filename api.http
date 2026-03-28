@@ -70,3 +70,13 @@ Authorization: Bearer {{tokenPartner1}}
 ### Listagem dos detalhes do evento criado pelo parceiro
 GET http://localhost:3000/partners/events/1
 Authorization: Bearer {{tokenPartner1}}
+
+### Criação de tickets para o evento criado pelo parceiro
+POST http://localhost:3000/partners/events/1/tickets
+Content-Type: application/json
+Authorization: Bearer {{tokenPartner1}}
+
+{
+  "numTickets": 100,
+  "price": 50.00
+}
