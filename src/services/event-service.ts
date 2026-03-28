@@ -1,12 +1,11 @@
-import * as mysql from 'mysql2/promise'
-
 import { Database } from '../database.js'
+import { EventModel } from '../models/event-model.js'
 
 export class EventService {
   async create(data: {
     name: string
     description: string | null
-    date: string
+    date: Date
     location: string
     partnerId: number
   }) {
@@ -15,51 +14,34 @@ export class EventService {
     const connection = Database.getInstance()
 
     try {
-      const eventDate = new Date(date)
-      const createdAt = new Date()
-      const [eventResult] = await connection.execute<mysql.ResultSetHeader>(
-        'INSERT INTO events (partner_id, name, description, date, location, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [partnerId, name, description, eventDate, location, createdAt]
-      )
-
-      return {
-        id: eventResult.insertId,
+      const event = await EventModel.create({
         partner_id: partnerId,
         name,
         description,
-        date: eventDate,
+        date,
+        location
+      })
+
+      return {
+        id: event.id,
+        partner_id: partnerId,
+        name,
+        description,
+        date,
         location,
-        created_at: createdAt
+        created_at: event.created_at
       }
     } finally {
       await connection.end()
     }
   }
   async findAll(partnerId?: number) {
-    const connection = Database.getInstance()
-
-    try {
-      const query = partnerId ? 'SELECT * FROM events WHERE partner_id = ?' : 'SELECT * FROM events'
-
-      const params = partnerId ? [partnerId] : []
-
-      const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(query, params)
-
-      return eventRows
-    } finally {
-      await connection.end()
-    }
+    return EventModel.findAll({
+      where: { partner_id: partnerId }
+    })
   }
 
   async findById(eventId: number) {
-    const connection = Database.getInstance()
-    try {
-      const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
-        'SELECT * FROM events WHERE id = ?',
-        [eventId]
-      )
-      return eventRows.length ? eventRows[0] : null
-    } finally {
-    }
+    return EventModel.findById(eventId)
   }
 }

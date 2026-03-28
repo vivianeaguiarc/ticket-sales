@@ -1,7 +1,6 @@
-import bcrypt from 'bcrypt'
-import * as mysql from 'mysql2/promise'
-
 import { Database } from '../database.js'
+import { PartnerModel } from '../models/partner-model.js'
+import { UserModel } from '../models/user-model.js'
 
 export class PartnerService {
   async register(data: { name: string; email: string; password: string; company_name: string }) {
@@ -10,27 +9,15 @@ export class PartnerService {
 
     try {
       await connection.beginTransaction()
-      const createdAt = new Date()
-      const hashedPassword = bcrypt.hashSync(password, 10)
-
-      const [userResult] = await connection.execute<mysql.ResultSetHeader>(
-        'INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)',
-        [name, email, hashedPassword, createdAt]
-      )
-
-      const userId = userResult.insertId
-
-      const [partnerResult] = await connection.execute<mysql.ResultSetHeader>(
-        'INSERT INTO partners (user_id, company_name, created_at) VALUES (?, ?, ?)',
-        [userId, company_name, createdAt]
-      )
+      const user = await UserModel.create({ name, email, password })
+      const partner = await PartnerModel.create({ user_id: user.id, company_name })
       await connection.commit()
       return {
-        id: partnerResult.insertId,
+        id: partner.id,
         name,
-        userId,
+        userId: user.id,
         company_name,
-        createdAt
+        createdAt: partner.created_at
       }
     } catch (error) {
       await connection.rollback()
@@ -40,14 +27,6 @@ export class PartnerService {
     }
   }
   async findByUserId(userId: number) {
-    const connection = Database.getInstance()
-    try {
-      const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-        'SELECT * FROM partners WHERE user_id = ?',
-        [userId]
-      )
-      return rows.length ? rows[0] : null
-    } finally {
-    }
+    return PartnerModel.findByUserId(userId, { user: true })
   }
 }
