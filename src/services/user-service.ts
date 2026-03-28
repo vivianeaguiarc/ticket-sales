@@ -1,10 +1,10 @@
 import * as mysql from 'mysql2/promise'
 
-import { createConnection } from '../database.js'
+import { Database } from '../database.js'
 
 export class UserService {
   async findById(userId: number) {
-    const connection = await createConnection()
+    const connection = Database.getInstance()
     try {
       const [rows] = await connection.execute<mysql.RowDataPacket[]>(
         'SELECT * FROM users WHERE id = ?',
@@ -16,7 +16,7 @@ export class UserService {
     }
   }
   async findByEmail(email: string) {
-    const connection = await createConnection()
+    const connection = Database.getInstance()
     try {
       const [rows] = await connection.execute<mysql.RowDataPacket[]>(
         'SELECT * FROM users WHERE email = ?',
@@ -24,7 +24,6 @@ export class UserService {
       )
       return rows.length ? rows[0] : null
     } finally {
-      await connection.end()
     }
   }
 }

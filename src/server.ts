@@ -1,20 +1,9 @@
-import * as mysql from 'mysql2/promise'
-
 import { app } from './app.js'
-
-function createConnextion() {
-  return mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'root',
-    database: 'tickets',
-    port: 3307
-  })
-}
+import { Database } from './database.js'
 
 app.listen(3000, async () => {
   try {
-    const connection = await createConnextion()
+    const connection = Database.getInstance()
 
     await connection.execute('SET FOREIGN_KEY_CHECKS = 0')
     await connection.execute('TRUNCATE TABLE events')

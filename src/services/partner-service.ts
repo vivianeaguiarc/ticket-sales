@@ -1,14 +1,15 @@
 import bcrypt from 'bcrypt'
 import * as mysql from 'mysql2/promise'
 
-import { createConnection } from '../database.js'
+import { Database } from '../database.js'
 
 export class PartnerService {
   async register(data: { name: string; email: string; password: string; company_name: string }) {
     const { name, email, password, company_name } = data
-    const connection = await createConnection()
+    const connection = Database.getInstance()
 
     try {
+      await connection.beginTransaction()
       const createdAt = new Date()
       const hashedPassword = bcrypt.hashSync(password, 10)
 
@@ -23,7 +24,7 @@ export class PartnerService {
         'INSERT INTO partners (user_id, company_name, created_at) VALUES (?, ?, ?)',
         [userId, company_name, createdAt]
       )
-
+      await connection.commit()
       return {
         id: partnerResult.insertId,
         name,
@@ -32,17 +33,14 @@ export class PartnerService {
         createdAt
       }
     } catch (error) {
-      console.error('Error creating partner:', error)
-
-      return {
-        message: 'Internal server error'
-      }
+      await connection.rollback()
+      throw error
     } finally {
       await connection.end()
     }
   }
   async findByUserId(userId: number) {
-    const connection = await createConnection()
+    const connection = Database.getInstance()
     try {
       const [rows] = await connection.execute<mysql.RowDataPacket[]>(
         'SELECT * FROM partners WHERE user_id = ?',
@@ -50,7 +48,6 @@ export class PartnerService {
       )
       return rows.length ? rows[0] : null
     } finally {
-      await connection.end()
     }
   }
 }

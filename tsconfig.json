@@ -9,6 +9,7 @@
     "outDir": "dist",
     "strict": true,
     "skipLibCheck": true,
+    "strictNullChecks": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "allowImportingTsExtensions": false,

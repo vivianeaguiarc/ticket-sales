@@ -1,6 +1,6 @@
 import * as mysql from 'mysql2/promise'
 
-import { createConnection } from '../database.js'
+import { Database } from '../database.js'
 
 export class EventService {
   async create(data: {
@@ -12,7 +12,7 @@ export class EventService {
   }) {
     const { name, description, date, location, partnerId } = data
 
-    const connection = await createConnection()
+    const connection = Database.getInstance()
 
     try {
       const eventDate = new Date(date)
@@ -36,7 +36,7 @@ export class EventService {
     }
   }
   async findAll(partnerId?: number) {
-    const connection = await createConnection()
+    const connection = Database.getInstance()
 
     try {
       const query = partnerId ? 'SELECT * FROM events WHERE partner_id = ?' : 'SELECT * FROM events'
@@ -52,7 +52,7 @@ export class EventService {
   }
 
   async findById(eventId: number) {
-    const connection = await createConnection()
+    const connection = Database.getInstance()
     try {
       const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
         'SELECT * FROM events WHERE id = ?',
@@ -60,7 +60,6 @@ export class EventService {
       )
       return eventRows.length ? eventRows[0] : null
     } finally {
-      await connection.end()
     }
   }
 }
