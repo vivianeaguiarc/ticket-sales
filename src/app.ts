@@ -1,14 +1,13 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
-import * as mysql from 'mysql2/promise'
 import swaggerUi from 'swagger-ui-express'
 
 import { authRoutes } from './controller/auth-controller.js'
 import { customerRoutes } from './controller/customer-controller.js'
 import { eventsRoutes } from './controller/event-controller.js'
 import { partnerRoutes } from './controller/partner-controller.js'
-import { createConnection } from './database.js'
 import { swaggerSpec } from './docs/swagger.js'
+import { UserService } from './services/user-service.js'
 
 export const app = express()
 
@@ -25,43 +24,25 @@ app.use(async (req, res, next) => {
   const isUnprotected = unprotectedRoutes.some(
     (route) => route.method === req.method && req.path.startsWith(route.path)
   )
-
   if (isUnprotected) {
     return next()
   }
-
   const token = req.headers['authorization']?.split(' ')[1]
-
   if (!token) {
     return res.status(401).json({ message: 'No token provided' })
   }
-
   try {
     const payload = jwt.verify(token, 'your_secret_key') as {
       id: number
       email: string
     }
-
-    const connection = await createConnection()
-
-    try {
-      const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-        'SELECT * FROM users WHERE id = ?',
-        [payload.id]
-      )
-
-      const user = rows.length ? rows[0] : null
-
-      if (!user) {
-        return res.status(401).json({ message: 'User not found' })
-      }
-
-      req.user = user as { id: number; email: string }
-
-      return next()
-    } finally {
-      await connection.end()
+    const userService = new UserService()
+    const user = await userService.findById(payload.id)
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' })
     }
+    req.user = user as { id: number; email: string }
+    return next()
   } catch (_error) {
     return res.status(401).json({ message: 'Failed to authenticate token' })
   }

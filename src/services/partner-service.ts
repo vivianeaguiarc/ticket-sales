@@ -41,4 +41,16 @@ export class PartnerService {
       await connection.end()
     }
   }
+  async findByUserId(userId: number) {
+    const connection = await createConnection()
+    try {
+      const [rows] = await connection.execute<mysql.RowDataPacket[]>(
+        'SELECT * FROM partners WHERE user_id = ?',
+        [userId]
+      )
+      return rows.length ? rows[0] : null
+    } finally {
+      await connection.end()
+    }
+  }
 }
