@@ -5,7 +5,7 @@ import { UserModel } from '../models/user-model.js'
 export class PartnerService {
   async register(data: { name: string; email: string; password: string; company_name: string }) {
     const { name, email, password, company_name } = data
-    const connection = Database.getInstance()
+    const connection = await Database.getInstance().getConnection()
 
     try {
       await connection.beginTransaction()

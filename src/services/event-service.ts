@@ -1,4 +1,3 @@
-import { Database } from '../database.js'
 import { EventModel } from '../models/event-model.js'
 
 export class EventService {
@@ -11,30 +10,25 @@ export class EventService {
   }) {
     const { name, description, date, location, partnerId } = data
 
-    const connection = Database.getInstance()
+    const event = await EventModel.create({
+      partner_id: partnerId,
+      name,
+      description,
+      date,
+      location
+    })
 
-    try {
-      const event = await EventModel.create({
-        partner_id: partnerId,
-        name,
-        description,
-        date,
-        location
-      })
-
-      return {
-        id: event.id,
-        partner_id: partnerId,
-        name,
-        description,
-        date,
-        location,
-        created_at: event.created_at
-      }
-    } finally {
-      await connection.end()
+    return {
+      id: event.id,
+      partner_id: partnerId,
+      name,
+      description,
+      date: event.date,
+      location,
+      created_at: event.created_at
     }
   }
+
   async findAll(partnerId?: number) {
     return EventModel.findAll({
       where: { partner_id: partnerId }

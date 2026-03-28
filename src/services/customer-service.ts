@@ -1,5 +1,4 @@
-import bcrypt from 'bcrypt'
-
+import { Database } from '../database.js'
 import { CustomerModel } from '../models/customer-model.js'
 import { UserModel } from '../models/user-model.js'
 
@@ -12,23 +11,45 @@ export class CustomerService {
     phone: string
   }) {
     const { name, email, password, address, phone } = data
-    const hashedPassword = bcrypt.hashSync(password, 10)
-    const userModel = await UserModel.create({ name, email, password: hashedPassword })
-    const userId = userModel.id
 
-    const customerModel = await CustomerModel.create({
-      user_id: userId,
-      address,
-      phone
-    })
+    const connection = await Database.getInstance().getConnection()
 
-    return {
-      id: customerModel.id,
-      userId,
-      name,
-      address,
-      phone,
-      createdAt: customerModel.created_at
+    try {
+      await connection.beginTransaction()
+
+      const user = await UserModel.create(
+        {
+          name,
+          email,
+          password
+        },
+        { connection }
+      )
+
+      const customer = await CustomerModel.create(
+        {
+          user_id: user.id,
+          address,
+          phone
+        },
+        { connection }
+      )
+
+      await connection.commit()
+
+      return {
+        id: customer.id,
+        userId: user.id,
+        name,
+        address,
+        phone,
+        createdAt: customer.created_at
+      }
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
     }
   }
 }

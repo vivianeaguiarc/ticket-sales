@@ -49,19 +49,7 @@ Content-Type: application/json
 ###
 @tokenCustomer1 = {{loginCustomer1.response.body.token}}
 
-### Eventos
-POST http://localhost:3000/events
-Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
-
-{
-  "name": "Test Event 1",
-  "description": "This is a test event.",
-  "date": "2027-07-01T10:00:00Z",
-  "location": "Test Venue"
-}
-
-### Listagem de todos os eventos
+### Listagem pública de todos os eventos
 GET http://localhost:3000/events
 
 ### Criação do evento pelo parceiro
@@ -75,7 +63,6 @@ Authorization: Bearer {{tokenPartner1}}
   "date": "2027-07-01T10:00:00Z",
   "location": "Test Venue"
 }
-
 ### Listagem dos eventos criados pelo parceiro
 GET http://localhost:3000/partners/events
 Authorization: Bearer {{tokenPartner1}}

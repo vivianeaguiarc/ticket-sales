@@ -29,10 +29,11 @@ export class EventModel {
   ): Promise<EventModel> {
     const db = options?.connection ?? Database.getInstance()
     const created_at = new Date()
+    const formattedDate = new Date(data.date).toISOString().slice(0, 19).replace('T', ' ')
 
     const [result] = await db.execute<ResultSetHeader>(
       'INSERT INTO events (partner_id, name, description, date, location, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [data.partner_id, data.name, data.description, data.date, data.location, created_at]
+      [data.partner_id, data.name, data.description, formattedDate, data.location, created_at]
     )
 
     const event = new EventModel({
@@ -99,10 +100,11 @@ export class EventModel {
 
   async update(): Promise<void> {
     const db = Database.getInstance()
+    const formattedDate = new Date(this.date).toISOString().slice(0, 19).replace('T', ' ')
 
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE events SET partner_id = ?, name = ?, description = ?, date = ?, location = ? WHERE id = ?',
-      [this.partner_id, this.name, this.description, this.date, this.location, this.id]
+      [this.partner_id, this.name, this.description, formattedDate, this.location, this.id]
     )
 
     if (result.affectedRows === 0) {
