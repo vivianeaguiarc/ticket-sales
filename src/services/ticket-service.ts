@@ -18,4 +18,15 @@ export class TicketService {
 
     await TicketModel.createMany(ticketsData)
   }
+  async findByEventId(eventId: number) {
+    const event = await EventModel.findById(eventId)
+    if (!event) {
+      throw new Error('Event not found')
+    }
+    return await TicketModel.findAll({ where: { event_id: eventId } })
+  }
+  async findById(eventId: number, ticketId: number) {
+    const ticket = await TicketModel.findById(ticketId)
+    return ticket && ticket.event_id === eventId ? ticket : null
+  }
 }
