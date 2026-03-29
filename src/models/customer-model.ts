@@ -107,6 +107,10 @@ export class CustomerModel {
     return customer
   }
 
+  static async findOne(data: { where: { user_id: number } }): Promise<CustomerModel | null> {
+    return CustomerModel.findByUserId(data.where.user_id)
+  }
+
   static async findAll(): Promise<CustomerModel[]> {
     const db = Database.getInstance()
 
