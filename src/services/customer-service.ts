@@ -52,4 +52,10 @@ export class CustomerService {
       connection.release()
     }
   }
+
+  async findByUserId(userId: number) {
+    return CustomerModel.findOne({
+      where: { user_id: userId }
+    })
+  }
 }
