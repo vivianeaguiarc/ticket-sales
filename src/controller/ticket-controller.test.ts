@@ -54,7 +54,7 @@ describe('TicketController', () => {
     createManyMock.mockResolvedValue(undefined)
 
     const response = await request(app).post('/partners/events/1/tickets').send({
-      numTickets: 10,
+      num_tickets: 10,
       price: 150
     })
 
@@ -73,13 +73,13 @@ describe('TicketController', () => {
     findByUserIdMock.mockResolvedValue(null)
 
     const response = await request(app).post('/partners/events/1/tickets').send({
-      numTickets: 10,
+      num_tickets: 10,
       price: 150
     })
 
     expect(response.status).toBe(403)
     expect(response.body).toEqual({
-      message: 'Only partners can create tickets'
+      message: 'Not authorized'
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
