@@ -21,14 +21,14 @@ eventsRoutes.get('/:eventId', async (req, res) => {
   }
   res.json(event)
 })
-eventsRoutes.get('/:eventId', async (req, res) => {
-  const { eventId } = req.params
-  const eventService = new EventService()
-  const event = await eventService.findById(+eventId)
+// eventsRoutes.get('/:eventId', async (req, res) => {
+//   const { eventId } = req.params
+//   const eventService = new EventService()
+//   const event = await eventService.findById(+eventId)
 
-  if (!event) {
-    res.status(404).json({ message: 'Event not found' })
-    return
-  }
-  res.json(event)
-})
+//   if (!event) {
+//     res.status(404).json({ message: 'Event not found' })
+//     return
+//   }
+//   res.json(event)
+// })
