@@ -1,6 +1,28 @@
 # 🎟️ Ticket Sales API
 
-API REST robusta para **criação, gerenciamento e venda de ingressos para eventos**, projetada com foco em **escalabilidade, concorrência e boas práticas de engenharia de software** 🚀
+<p align="center">
+  <img src="https://img.shields.io/badge/tests-passing-brightgreen" />
+  <img src="https://img.shields.io/badge/coverage-85%25-yellowgreen" />
+  <img src="https://img.shields.io/badge/Node.js-24.x-339933?logo=nodejs&logoColor=white" />
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white" />
+</p>
+
+---
+
+<p align="center">
+  <strong>
+    API REST para criação, gerenciamento e venda de ingressos para eventos
+  </strong>
+</p>
+
+<p align="center">
+  Construída com foco em <b>fundamentos sólidos</b>, evolução arquitetural e controle de concorrência 🚀
+</p>
+
+---
+
+> ⚠️ O projeto ainda está em evolução e ainda não atingiu o nível final descrito aqui.  
+> Este README representa **onde o projeto está caminhando**.
 
 ---
 
@@ -13,7 +35,7 @@ O sistema permite:
 - 🛒 Clientes comprarem ingressos
 - ❌ Cancelamento de compras
 - 📊 Controle de concorrência (evita vendas duplicadas)
-- ⚡ Alta escalabilidade para milhares de acessos simultâneos
+- ⚡ Evolução progressiva de arquitetura (monolito → camadas → hexagonal)
 
 ---
 
@@ -25,117 +47,98 @@ O sistema permite:
 - Tickets são criados em lote
 - Status inicial: **disponível**
 
+---
+
 ### 🛒 Compra de Tickets
 
 - Cliente pode comprar múltiplos tickets
-- Um ticket só pode ser comprado uma vez (controle de concorrência)
+- Um ticket só pode ser comprado uma única vez
+- Controle de concorrência evita duplicidade
 - Falhas de compra são registradas
+
+---
 
 ### ❌ Cancelamento
 
-- Tickets retornam para "disponível"
+- Tickets voltam para **disponível**
 - Histórico de status é mantido
 
-### ⚡ Escalabilidade
+---
 
-- Sistema preparado para alta concorrência
+### ⚡ Concorrência
+
+- Preparado para múltiplas requisições simultâneas
+- Regras garantem integridade da compra
 
 ---
 
-## 🧱 Entidades do Sistema
+## 🧪 Testes (MUUUITO IMPORTANTE)
 
-### 👨‍💼 Parceiros
+> 🚨 Parte essencial do projeto
 
-```ts
-id: string
-nome: string
-email: string
-senha: string
-empresa: string
-```
+### 🧪 Tecnologias
 
-### 👤 Clientes
+- Vitest
+- Axios
 
-```ts
-id: string
-nome: string
-email: string
-senha: string
-endereco: string
-telefone: string
-```
+---
 
-### 🎉 Eventos
+### 📌 Cenários testados
 
-```ts
-id: number
-nome: string
-descricao: string
-data: Date
-local: string
-parceiro_id: string
-```
+#### ✅ Sucesso
 
-### 🎫 Tickets
+- Criação de evento (201)
 
-```ts
-id: number
-evento_id: number
-local: string
-preco: number
-status: 'disponivel' | 'vendido'
+#### ❌ Erros
+
+- ownerId inválido
+- preço negativo
+- latitude/longitude inválidas
+- data no passado
+
+#### ⚠️ Regras críticas
+
+- Evitar eventos duplicados
+- Garantir integridade de compra
+
+---
+
+### ▶️ Rodar testes
+
+```bash
+pnpm test
+pnpm test:watch
 ```
 
 ---
 
-## 🏗️ Arquitetura
+## 🏗️ Arquitetura (Evolução)
 
-Projeto baseado em:
-
-- 🧩 Clean Architecture
-- 🔌 Arquitetura Hexagonal
-- ♻️ SOLID Principles
-
-### 📂 Estrutura
-
-```
-src/
- ├── main/
- ├── modules/
- ├── shared/
- ├── infra/
- └── application/
-```
+- ✅ Monolito funcional
+- ✅ Camada de Services
+- 🔄 Em evolução para Arquitetura Hexagonal
 
 ---
 
 ## 🛠️ Tecnologias
 
-| Tecnologia        | Descrição               |
-| ----------------- | ----------------------- |
-| Node.js 24        | Runtime                 |
-| TypeScript        | Tipagem forte           |
-| Express 5         | API REST                |
-| Prisma            | ORM                     |
-| PostgreSQL        | Banco de dados          |
-| Vitest            | Testes                  |
-| ESLint + Prettier | Qualidade de código     |
-| Husky             | Git hooks               |
-| Commitlint        | Padronização de commits |
+<p align="center">
 
----
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/express/express-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mysql/mysql-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg" width="50" />
+<img src="https://vitest.dev/logo.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/eslint/eslint-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/prettier/prettier-original.svg" width="50" />
+<img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/git/git-original.svg" width="50" />
 
-## ⚙️ Scripts
+</p>
 
-```bash
-pnpm dev
-pnpm build
-pnpm start
-pnpm test
-pnpm lint
-pnpm format
-pnpm check
-```
+<p align="center">
+Node.js • TypeScript • Express • MySQL • PostgreSQL • Vitest • ESLint • Prettier • Git
+</p>
 
 ---
 
@@ -159,29 +162,25 @@ sequenceDiagram
 ## 🚀 Diferenciais
 
 - ⚡ Controle de concorrência
-- 🧱 Arquitetura escalável
 - 🧪 Testes automatizados
-- 🔍 Código limpo e padronizado
-- 📈 Pronto para produção
+- 🧠 Evolução arquitetural real
+- 📈 Projeto focado em fundamentos sólidos
 
 ---
 
-## 📈 Próximos passos
+## 🗂️ Database ERD
 
-- 🔐 Autenticação JWT
-- 💳 Integração com pagamentos
-- 📊 Dashboard de vendas
-- ☁️ Deploy em cloud
-
----
+<p align="center">
+  <img src="./public/erd-diagram.png" width="800"/>
+</p>
 
 ## 👩‍💻 Autora
 
 **Viviane Aguiar**  
-💻 Backend Developer | Node.js | TypeScript | Clean Architecture
+Backend Developer | Node.js | TypeScript
 
 ---
 
 ## ⭐ Se este projeto te chamou atenção
 
-Deixe uma ⭐ no repositório e acompanhe a evolução 🚀
+Deixe uma ⭐ e acompanhe a evolução 🚀
