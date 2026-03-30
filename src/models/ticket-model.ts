@@ -4,6 +4,7 @@ import { Database } from '../database.js'
 
 export enum TicketStatus {
   available = 'available',
+  reserved = 'reserved',
   sold = 'sold'
 }
 
@@ -19,13 +20,16 @@ export class TicketModel {
     this.fill(data)
   }
 
-  static async create(data: {
-    location: string
-    event_id: number
-    price: number
-    status: TicketStatus
-  }): Promise<TicketModel> {
-    const db = Database.getInstance()
+  static async create(
+    data: {
+      location: string
+      event_id: number
+      price: number
+      status: TicketStatus
+    },
+    options?: { connection?: PoolConnection }
+  ): Promise<TicketModel> {
+    const db = options?.connection ?? Database.getInstance()
     const created_at = new Date()
     const [result] = await db.execute<ResultSetHeader>(
       'INSERT INTO tickets (location, event_id, price, status, created_at) VALUES (?, ?, ?, ?, ?)',
@@ -45,9 +49,10 @@ export class TicketModel {
       event_id: number
       price: number
       status: TicketStatus
-    }[]
+    }[],
+    options?: { connection?: PoolConnection }
   ): Promise<TicketModel[]> {
-    const db = Database.getInstance()
+    const db = options?.connection ?? Database.getInstance()
     const created_at = new Date()
     const values = Array(data.length).fill('(?, ?, ?, ?, ?)').join(', ')
     const params = data.reduce<(string | number | Date)[]>(
@@ -84,32 +89,41 @@ export class TicketModel {
 
   static async findAll(
     filter?: {
-      where?: { event_id?: number; ids?: number[] }
+      where?: { event_id?: number; ids?: number[]; status?: TicketStatus }
     },
     options?: { connection?: PoolConnection }
   ): Promise<TicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
     let query = 'SELECT * FROM tickets'
-    const params = []
+    const params: (string | number)[] = []
+
     if (filter && filter.where) {
       const where = []
+
       if (filter.where.event_id) {
         where.push('event_id = ?')
         params.push(filter.where.event_id)
       }
+
       if (filter.where.ids) {
-        //using ? and params
         where.push(`id IN (${filter.where.ids.map(() => '?').join(', ')})`)
         params.push(...filter.where.ids)
       }
+
+      if (filter.where.status) {
+        where.push('status = ?')
+        params.push(filter.where.status)
+      }
+
       query += ` WHERE ${where.join(' AND ')}`
     }
+
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
     return rows.map((row) => new TicketModel(row as TicketModel))
   }
 
-  async update(): Promise<void> {
-    const db = Database.getInstance()
+  async update(options?: { connection?: PoolConnection }): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE tickets SET location = ?, event_id = ?, price = ?, status = ? WHERE id = ?',
       [this.location, this.event_id, this.price, this.status, this.id]
@@ -119,8 +133,8 @@ export class TicketModel {
     }
   }
 
-  async delete(): Promise<void> {
-    const db = Database.getInstance()
+  async delete(options?: { connection?: PoolConnection }): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
     const [result] = await db.execute<ResultSetHeader>('DELETE FROM tickets WHERE id = ?', [
       this.id
     ])
