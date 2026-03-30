@@ -1,18 +1,19 @@
 import { Database } from '../database.js'
+import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { TicketModel } from '../models/ticket-model.js'
 
 interface Input {
-  purchase_id: number
+  customer_id: number
   ticket_ids: number[]
 }
 
 export class PurchaseTicketUseCase {
-  static async execute(input: Input): Promise<PurchaseTicketModel[]> {
-    const { purchase_id, ticket_ids } = input
+  static async execute(input: Input): Promise<PurchaseModel> {
+    const { customer_id, ticket_ids } = input
 
-    if (!purchase_id) {
-      throw new Error('Purchase id is required')
+    if (!customer_id) {
+      throw new Error('Customer id is required')
     }
 
     if (!ticket_ids || ticket_ids.length === 0) {
@@ -29,9 +30,33 @@ export class PurchaseTicketUseCase {
         await TicketModel.reserveIfAvailable(ticketId, { connection })
       }
 
-      const purchaseTickets = await PurchaseTicketModel.createMany(
+      const tickets = await TicketModel.findAll(
+        {
+          where: {
+            ids: ticket_ids
+          }
+        },
+        { connection }
+      )
+
+      if (tickets.length !== ticket_ids.length) {
+        throw new Error('One or more tickets not found')
+      }
+
+      const total_amount = tickets.reduce((total, ticket) => total + ticket.price, 0)
+
+      const purchase = await PurchaseModel.create(
+        {
+          customer_id,
+          total_amount,
+          status: PurchaseStatus.paid
+        },
+        { connection }
+      )
+
+      await PurchaseTicketModel.createMany(
         ticket_ids.map((ticket_id) => ({
-          purchase_id,
+          purchase_id: purchase.id,
           ticket_id
         })),
         { connection }
@@ -43,7 +68,7 @@ export class PurchaseTicketUseCase {
 
       await connection.commit()
 
-      return purchaseTickets
+      return purchase
     } catch (error) {
       await connection.rollback()
       throw error
