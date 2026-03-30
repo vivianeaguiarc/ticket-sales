@@ -216,41 +216,39 @@ describe('TicketController', () => {
   })
 
   test('deve comprar tickets com sucesso', async () => {
-    const purchaseTickets = [
-      { id: 1, purchase_id: 10, ticket_id: 101 },
-      { id: 2, purchase_id: 10, ticket_id: 102 }
-    ]
+    const purchase = {
+      id: 10,
+      customer_id: 1,
+      total_amount: 350,
+      status: 'paid'
+    }
 
-    purchaseTicketExecuteMock.mockResolvedValue(purchaseTickets)
+    purchaseTicketExecuteMock.mockResolvedValue(purchase)
 
     const response = await request(app)
       .post('/partners/events/purchases')
       .send({
-        purchase_id: 10,
         ticket_ids: [101, 102]
       })
 
     expect(response.status).toBe(201)
-    expect(response.body).toEqual(purchaseTickets)
+    expect(response.body).toEqual(purchase)
     expect(purchaseTicketExecuteMock).toHaveBeenCalledWith({
-      purchase_id: 10,
+      customer_id: 1,
       ticket_ids: [101, 102]
     })
   })
 
   test('deve retornar 400 ao comprar tickets com dados inválidos', async () => {
-    purchaseTicketExecuteMock.mockRejectedValue(new Error('Purchase id is required'))
+    purchaseTicketExecuteMock.mockRejectedValue(new Error('At least one ticket id is required'))
 
-    const response = await request(app)
-      .post('/partners/events/purchases')
-      .send({
-        purchase_id: 0,
-        ticket_ids: [101]
-      })
+    const response = await request(app).post('/partners/events/purchases').send({
+      ticket_ids: []
+    })
 
     expect(response.status).toBe(400)
     expect(response.body).toEqual({
-      message: 'Purchase id is required'
+      message: 'At least one ticket id is required'
     })
   })
 
@@ -260,7 +258,6 @@ describe('TicketController', () => {
     const response = await request(app)
       .post('/partners/events/purchases')
       .send({
-        purchase_id: 10,
         ticket_ids: [101]
       })
 
