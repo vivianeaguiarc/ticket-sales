@@ -46,6 +46,11 @@ export class PurchaseService {
     try {
       await connection.beginTransaction()
 
+      for (const ticket of tickets) {
+        ticket.status = TicketStatus.reserved
+        await ticket.update({ connection })
+      }
+
       purchase = await PurchaseModel.create(
         {
           customer_id: data.customerId,
@@ -57,14 +62,16 @@ export class PurchaseService {
 
       await this.associateTicketsWithPurchase(purchase.id, data.ticketIds, connection)
 
-      await ReservationTicketModel.create(
-        {
-          customer_id: data.customerId,
-          ticket_id: data.ticketIds[0],
-          status: ReservationStatus.reserved
-        },
-        { connection }
-      )
+      for (const ticket of tickets) {
+        await ReservationTicketModel.create(
+          {
+            customer_id: data.customerId,
+            ticket_id: ticket.id,
+            status: ReservationStatus.reserved
+          },
+          { connection }
+        )
+      }
 
       await this.paymentService.processPayment(
         {
@@ -77,6 +84,11 @@ export class PurchaseService {
         data.cardToken
       )
 
+      for (const ticket of tickets) {
+        ticket.status = TicketStatus.sold
+        await ticket.update({ connection })
+      }
+
       purchase.status = PurchaseStatus.paid
       await purchase.update({ connection })
 
@@ -84,6 +96,10 @@ export class PurchaseService {
       return purchase.id
     } catch (error) {
       await connection.rollback()
+
+      for (const ticket of tickets) {
+        ticket.status = TicketStatus.available
+      }
 
       if (purchase) {
         purchase.status = PurchaseStatus.error
