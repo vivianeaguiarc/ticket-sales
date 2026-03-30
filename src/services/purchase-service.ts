@@ -41,7 +41,7 @@ export class PurchaseService {
     const db = Database.getInstance()
     const connection = await db.getConnection()
 
-    let purchase: PurchaseModel
+    let purchase: PurchaseModel | undefined
 
     try {
       await connection.beginTransaction()
@@ -85,11 +85,68 @@ export class PurchaseService {
     } catch (error) {
       await connection.rollback()
 
-      if (purchase!) {
+      if (purchase) {
         purchase.status = PurchaseStatus.error
         await purchase.update({ connection })
       }
 
+      throw error
+    } finally {
+      connection.release()
+    }
+  }
+
+  async cancel(purchaseId: number): Promise<void> {
+    const purchase = await PurchaseModel.findById(purchaseId)
+
+    if (!purchase) {
+      throw new Error('Purchase not found')
+    }
+
+    if (purchase.status === PurchaseStatus.cancelled) {
+      throw new Error('Purchase already cancelled')
+    }
+
+    const purchaseTickets = await PurchaseTicketModel.findAll({
+      where: { purchase_id: purchaseId }
+    })
+
+    const ticketIds = purchaseTickets.map((purchaseTicket) => purchaseTicket.ticket_id)
+
+    const tickets = await TicketModel.findAll({
+      where: { ids: ticketIds }
+    })
+
+    const reservations = await ReservationTicketModel.findAll({
+      where: {
+        customer_id: purchase.customer_id,
+        ticket_id: ticketIds,
+        status: ReservationStatus.reserved
+      }
+    })
+
+    const db = Database.getInstance()
+    const connection = await db.getConnection()
+
+    try {
+      await connection.beginTransaction()
+
+      for (const ticket of tickets) {
+        ticket.status = TicketStatus.available
+        await ticket.update({ connection })
+      }
+
+      for (const reservation of reservations) {
+        reservation.status = ReservationStatus.cancelled
+        await reservation.update({ connection })
+      }
+
+      purchase.status = PurchaseStatus.cancelled
+      await purchase.update({ connection })
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
       throw error
     } finally {
       connection.release()

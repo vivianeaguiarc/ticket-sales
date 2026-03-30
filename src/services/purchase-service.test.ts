@@ -6,7 +6,9 @@ const {
   createPurchaseMock,
   createManyPurchaseTicketsMock,
   createReservationMock,
+  findReservationsMock,
   findPurchaseByIdMock,
+  findPurchaseTicketsMock,
   getConnectionMock,
   beginTransactionMock,
   commitMock,
@@ -19,7 +21,9 @@ const {
     createPurchaseMock: vi.fn(),
     createManyPurchaseTicketsMock: vi.fn(),
     createReservationMock: vi.fn(),
+    findReservationsMock: vi.fn(),
     findPurchaseByIdMock: vi.fn(),
+    findPurchaseTicketsMock: vi.fn(),
     getConnectionMock: vi.fn(),
     beginTransactionMock: vi.fn(),
     commitMock: vi.fn(),
@@ -67,7 +71,8 @@ vi.mock('../models/purchase-model', () => {
 vi.mock('../models/purchase-ticket-model', () => {
   return {
     PurchaseTicketModel: {
-      createMany: createManyPurchaseTicketsMock
+      createMany: createManyPurchaseTicketsMock,
+      findAll: findPurchaseTicketsMock
     }
   }
 })
@@ -75,7 +80,8 @@ vi.mock('../models/purchase-ticket-model', () => {
 vi.mock('../models/reservation-ticket-model', () => {
   return {
     ReservationTicketModel: {
-      create: createReservationMock
+      create: createReservationMock,
+      findAll: findReservationsMock
     },
     ReservationStatus: {
       reserved: 'reserved',
@@ -347,6 +353,169 @@ describe('PurchaseService', () => {
       expect(purchase.status).toBe(PurchaseStatus.error)
       expect(purchase.update).toHaveBeenCalledTimes(1)
       expect(purchase.update).toHaveBeenCalledWith({ connection })
+    })
+  })
+
+  describe('cancel', () => {
+    test('deve cancelar compra com sucesso', async () => {
+      const purchaseService = new PurchaseService(paymentService as never)
+
+      const purchase = {
+        id: 99,
+        customer_id: 1,
+        total_amount: 250,
+        status: PurchaseStatus.paid,
+        update: vi.fn()
+      }
+
+      const purchaseTickets = [
+        { id: 1, purchase_id: 99, ticket_id: 10 },
+        { id: 2, purchase_id: 99, ticket_id: 11 }
+      ]
+
+      const tickets = [
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.sold,
+          update: vi.fn()
+        },
+        {
+          id: 11,
+          price: 150,
+          status: TicketStatus.sold,
+          update: vi.fn()
+        }
+      ]
+
+      const reservations = [
+        {
+          id: 1,
+          customer_id: 1,
+          ticket_id: 10,
+          status: ReservationStatus.reserved,
+          update: vi.fn()
+        }
+      ]
+
+      findPurchaseByIdMock.mockResolvedValue(purchase)
+      findPurchaseTicketsMock.mockResolvedValue(purchaseTickets)
+      findTicketsMock.mockResolvedValue(tickets)
+      findReservationsMock.mockResolvedValue(reservations)
+
+      await purchaseService.cancel(99)
+
+      expect(findPurchaseByIdMock).toHaveBeenCalledWith(99)
+      expect(findPurchaseTicketsMock).toHaveBeenCalledWith({
+        where: { purchase_id: 99 }
+      })
+      expect(findTicketsMock).toHaveBeenCalledWith({
+        where: { ids: [10, 11] }
+      })
+      expect(findReservationsMock).toHaveBeenCalledWith({
+        where: {
+          customer_id: 1,
+          ticket_id: [10, 11],
+          status: ReservationStatus.reserved
+        }
+      })
+
+      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
+      expect(commitMock).toHaveBeenCalledTimes(1)
+      expect(rollbackMock).not.toHaveBeenCalled()
+      expect(releaseMock).toHaveBeenCalledTimes(1)
+
+      expect(tickets[0].status).toBe(TicketStatus.available)
+      expect(tickets[1].status).toBe(TicketStatus.available)
+      expect(tickets[0].update).toHaveBeenCalledWith({ connection })
+      expect(tickets[1].update).toHaveBeenCalledWith({ connection })
+
+      expect(reservations[0].status).toBe(ReservationStatus.cancelled)
+      expect(reservations[0].update).toHaveBeenCalledWith({ connection })
+
+      expect(purchase.status).toBe(PurchaseStatus.cancelled)
+      expect(purchase.update).toHaveBeenCalledWith({ connection })
+    })
+
+    test('deve lançar erro se purchase não for encontrada', async () => {
+      const purchaseService = new PurchaseService(paymentService as never)
+
+      findPurchaseByIdMock.mockResolvedValue(null)
+
+      await expect(purchaseService.cancel(99)).rejects.toThrow('Purchase not found')
+
+      expect(findPurchaseByIdMock).toHaveBeenCalledWith(99)
+      expect(findPurchaseTicketsMock).not.toHaveBeenCalled()
+      expect(findTicketsMock).not.toHaveBeenCalled()
+      expect(findReservationsMock).not.toHaveBeenCalled()
+      expect(getConnectionMock).not.toHaveBeenCalled()
+    })
+
+    test('deve lançar erro se purchase já estiver cancelada', async () => {
+      const purchaseService = new PurchaseService(paymentService as never)
+
+      const purchase = {
+        id: 99,
+        customer_id: 1,
+        total_amount: 250,
+        status: PurchaseStatus.cancelled,
+        update: vi.fn()
+      }
+
+      findPurchaseByIdMock.mockResolvedValue(purchase)
+
+      await expect(purchaseService.cancel(99)).rejects.toThrow('Purchase already cancelled')
+
+      expect(findPurchaseByIdMock).toHaveBeenCalledWith(99)
+      expect(findPurchaseTicketsMock).not.toHaveBeenCalled()
+      expect(findTicketsMock).not.toHaveBeenCalled()
+      expect(findReservationsMock).not.toHaveBeenCalled()
+      expect(getConnectionMock).not.toHaveBeenCalled()
+    })
+
+    test('deve fazer rollback se ocorrer erro no cancelamento', async () => {
+      const purchaseService = new PurchaseService(paymentService as never)
+
+      const purchase = {
+        id: 99,
+        customer_id: 1,
+        total_amount: 250,
+        status: PurchaseStatus.paid,
+        update: vi.fn()
+      }
+
+      const purchaseTickets = [{ id: 1, purchase_id: 99, ticket_id: 10 }]
+
+      const tickets = [
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.sold,
+          update: vi.fn().mockRejectedValue(new Error('Ticket update failed'))
+        }
+      ]
+
+      const reservations = [
+        {
+          id: 1,
+          customer_id: 1,
+          ticket_id: 10,
+          status: ReservationStatus.reserved,
+          update: vi.fn()
+        }
+      ]
+
+      findPurchaseByIdMock.mockResolvedValue(purchase)
+      findPurchaseTicketsMock.mockResolvedValue(purchaseTickets)
+      findTicketsMock.mockResolvedValue(tickets)
+      findReservationsMock.mockResolvedValue(reservations)
+
+      await expect(purchaseService.cancel(99)).rejects.toThrow('Ticket update failed')
+
+      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
+      expect(commitMock).not.toHaveBeenCalled()
+      expect(rollbackMock).toHaveBeenCalledTimes(1)
+      expect(releaseMock).toHaveBeenCalledTimes(1)
     })
   })
 
