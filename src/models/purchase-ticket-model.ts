@@ -2,95 +2,98 @@ import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 import { Database } from '../database.js'
 
-export enum ReservationStatus {
-  reserved = 'reserved',
-  cancelled = 'cancelled'
-}
+export class PurchaseTicketModel {
+  id: number = 0
+  purchase_id: number = 0
+  ticket_id: number = 0
 
-export class ReservationTicketModel {
-  id: number
-  customer_id: number
-  ticket_id: number
-  reservation_date: Date
-  status: ReservationStatus
-
-  constructor(data: Partial<ReservationTicketModel> = {}) {
+  constructor(data: Partial<PurchaseTicketModel> = {}) {
     this.fill(data)
   }
 
   static async create(
     data: {
-      customer_id: number
+      purchase_id: number
       ticket_id: number
-      status: ReservationStatus
     },
     options?: { connection?: PoolConnection }
-  ): Promise<ReservationTicketModel> {
+  ): Promise<PurchaseTicketModel> {
     const db = options?.connection ?? Database.getInstance()
-    const reservation_date = new Date()
 
     const [result] = await db.execute<ResultSetHeader>(
-      'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date) VALUES (?, ?, ?, ?)',
-      [data.customer_id, data.ticket_id, data.status, reservation_date]
+      'INSERT INTO purchase_tickets (purchase_id, ticket_id) VALUES (?, ?)',
+      [data.purchase_id, data.ticket_id]
     )
 
-    const reservation = new ReservationTicketModel({
-      ...data,
-      reservation_date,
-      id: result.insertId
+    return new PurchaseTicketModel({
+      id: result.insertId,
+      purchase_id: data.purchase_id,
+      ticket_id: data.ticket_id
     })
-
-    return reservation
   }
 
-  static async findById(id: number): Promise<ReservationTicketModel | null> {
+  static async createMany(
+    data: {
+      purchase_id: number
+      ticket_id: number
+    }[],
+    options?: { connection?: PoolConnection }
+  ): Promise<PurchaseTicketModel[]> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const values = data.map(() => '(?, ?)').join(', ')
+    const params = data.flatMap((item) => [item.purchase_id, item.ticket_id])
+
+    const [result] = await db.execute<ResultSetHeader>(
+      `INSERT INTO purchase_tickets (purchase_id, ticket_id) VALUES ${values}`,
+      params
+    )
+
+    return data.map((item, index) => {
+      return new PurchaseTicketModel({
+        id: result.insertId + index,
+        purchase_id: item.purchase_id,
+        ticket_id: item.ticket_id
+      })
+    })
+  }
+
+  static async findById(id: number): Promise<PurchaseTicketModel | null> {
     const db = Database.getInstance()
 
     const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT * FROM reservation_tickets WHERE id = ?',
+      'SELECT * FROM purchase_tickets WHERE id = ?',
       [id]
     )
 
-    return rows.length ? new ReservationTicketModel(rows[0] as ReservationTicketModel) : null
+    return rows.length ? new PurchaseTicketModel(rows[0] as PurchaseTicketModel) : null
   }
 
   static async findAll(
     filter?: {
       where?: {
-        customer_id?: number
+        purchase_id?: number
         ticket_id?: number[]
-        status?: ReservationStatus
-        reserved_before?: Date
       }
     },
     options?: { connection?: PoolConnection }
-  ): Promise<ReservationTicketModel[]> {
+  ): Promise<PurchaseTicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
 
-    let query = 'SELECT * FROM reservation_tickets'
-    const params: (number | string | Date)[] = []
+    let query = 'SELECT * FROM purchase_tickets'
+    const params: number[] = []
 
     if (filter?.where) {
-      const where = []
+      const where: string[] = []
 
-      if (filter.where.customer_id !== undefined) {
-        where.push('customer_id = ?')
-        params.push(filter.where.customer_id)
+      if (filter.where.purchase_id !== undefined) {
+        where.push('purchase_id = ?')
+        params.push(filter.where.purchase_id)
       }
 
       if (filter.where.ticket_id && filter.where.ticket_id.length > 0) {
         where.push(`ticket_id IN (${filter.where.ticket_id.map(() => '?').join(', ')})`)
         params.push(...filter.where.ticket_id)
-      }
-
-      if (filter.where.status !== undefined) {
-        where.push('status = ?')
-        params.push(filter.where.status)
-      }
-
-      if (filter.where.reserved_before !== undefined) {
-        where.push('reservation_date < ?')
-        params.push(filter.where.reserved_before)
       }
 
       if (where.length > 0) {
@@ -100,19 +103,19 @@ export class ReservationTicketModel {
 
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
 
-    return rows.map((row) => new ReservationTicketModel(row as ReservationTicketModel))
+    return rows.map((row) => new PurchaseTicketModel(row as PurchaseTicketModel))
   }
 
   async update(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
 
     const [result] = await db.execute<ResultSetHeader>(
-      'UPDATE reservation_tickets SET customer_id = ?, ticket_id = ?, status = ? WHERE id = ?',
-      [this.customer_id, this.ticket_id, this.status, this.id]
+      'UPDATE purchase_tickets SET purchase_id = ?, ticket_id = ? WHERE id = ?',
+      [this.purchase_id, this.ticket_id, this.id]
     )
 
     if (result.affectedRows === 0) {
-      throw new Error('Reservation not found')
+      throw new Error('Purchase ticket not found')
     }
   }
 
@@ -120,20 +123,18 @@ export class ReservationTicketModel {
     const db = options?.connection ?? Database.getInstance()
 
     const [result] = await db.execute<ResultSetHeader>(
-      'DELETE FROM reservation_tickets WHERE id = ?',
+      'DELETE FROM purchase_tickets WHERE id = ?',
       [this.id]
     )
 
     if (result.affectedRows === 0) {
-      throw new Error('Reservation not found')
+      throw new Error('Purchase ticket not found')
     }
   }
 
-  fill(data: Partial<ReservationTicketModel>): void {
-    if (data.id !== undefined) this.id = data.id
-    if (data.customer_id !== undefined) this.customer_id = data.customer_id
-    if (data.ticket_id !== undefined) this.ticket_id = data.ticket_id
-    if (data.reservation_date !== undefined) this.reservation_date = data.reservation_date
-    if (data.status !== undefined) this.status = data.status
+  fill(data: Partial<PurchaseTicketModel>): void {
+    this.id = data.id ?? this.id ?? 0
+    this.purchase_id = data.purchase_id ?? this.purchase_id ?? 0
+    this.ticket_id = data.ticket_id ?? this.ticket_id ?? 0
   }
 }

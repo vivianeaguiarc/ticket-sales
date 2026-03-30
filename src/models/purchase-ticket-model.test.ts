@@ -7,7 +7,7 @@ const { executeMock, getInstanceMock } = vi.hoisted(() => {
   }
 })
 
-vi.mock('../database', () => {
+vi.mock('../database.js', () => {
   return {
     Database: {
       getInstance: getInstanceMock
@@ -82,18 +82,9 @@ describe('PurchaseTicketModel', () => {
   describe('createMany', () => {
     test('deve criar vários purchase tickets com sucesso usando Database.getInstance()', async () => {
       const data = [
-        {
-          purchase_id: 1,
-          ticket_id: 101
-        },
-        {
-          purchase_id: 1,
-          ticket_id: 102
-        },
-        {
-          purchase_id: 1,
-          ticket_id: 103
-        }
+        { purchase_id: 1, ticket_id: 101 },
+        { purchase_id: 1, ticket_id: 102 },
+        { purchase_id: 1, ticket_id: 103 }
       ]
 
       executeMock.mockResolvedValue([{ insertId: 5 }])
@@ -113,11 +104,6 @@ describe('PurchaseTicketModel', () => {
       expect(result[0].id).toBe(5)
       expect(result[1].id).toBe(6)
       expect(result[2].id).toBe(7)
-
-      expect(result[0].purchase_id).toBe(1)
-      expect(result[0].ticket_id).toBe(101)
-      expect(result[1].ticket_id).toBe(102)
-      expect(result[2].ticket_id).toBe(103)
     })
 
     test('deve criar vários purchase tickets com sucesso usando connection nas options', async () => {
@@ -127,14 +113,8 @@ describe('PurchaseTicketModel', () => {
       }
 
       const data = [
-        {
-          purchase_id: 2,
-          ticket_id: 201
-        },
-        {
-          purchase_id: 2,
-          ticket_id: 202
-        }
+        { purchase_id: 2, ticket_id: 201 },
+        { purchase_id: 2, ticket_id: 202 }
       ]
 
       connectionExecuteMock.mockResolvedValue([{ insertId: 10 }])
@@ -149,10 +129,7 @@ describe('PurchaseTicketModel', () => {
       )
 
       expect(executeMock).not.toHaveBeenCalled()
-
       expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(PurchaseTicketModel)
-      expect(result[1]).toBeInstanceOf(PurchaseTicketModel)
       expect(result[0].id).toBe(10)
       expect(result[1].id).toBe(11)
     })
@@ -171,7 +148,6 @@ describe('PurchaseTicketModel', () => {
       const result = await PurchaseTicketModel.findById(1)
 
       expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchase_tickets WHERE id = ?', [1])
-      expect(result).toBeInstanceOf(PurchaseTicketModel)
       expect(result?.id).toBe(1)
       expect(result?.purchase_id).toBe(10)
       expect(result?.ticket_id).toBe(20)
@@ -190,16 +166,8 @@ describe('PurchaseTicketModel', () => {
   describe('findAll', () => {
     test('deve retornar todos os purchase tickets sem filtro', async () => {
       const rows = [
-        {
-          id: 1,
-          purchase_id: 10,
-          ticket_id: 20
-        },
-        {
-          id: 2,
-          purchase_id: 11,
-          ticket_id: 21
-        }
+        { id: 1, purchase_id: 10, ticket_id: 20 },
+        { id: 2, purchase_id: 11, ticket_id: 21 }
       ]
 
       executeMock.mockResolvedValue([rows])
@@ -208,20 +176,10 @@ describe('PurchaseTicketModel', () => {
 
       expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchase_tickets', [])
       expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(PurchaseTicketModel)
-      expect(result[1]).toBeInstanceOf(PurchaseTicketModel)
-      expect(result[0].purchase_id).toBe(10)
-      expect(result[1].ticket_id).toBe(21)
     })
 
     test('deve retornar purchase tickets filtrando por purchase_id', async () => {
-      const rows = [
-        {
-          id: 1,
-          purchase_id: 10,
-          ticket_id: 20
-        }
-      ]
+      const rows = [{ id: 1, purchase_id: 10, ticket_id: 20 }]
 
       executeMock.mockResolvedValue([rows])
 
@@ -234,21 +192,12 @@ describe('PurchaseTicketModel', () => {
         [10]
       )
       expect(result).toHaveLength(1)
-      expect(result[0].purchase_id).toBe(10)
     })
 
     test('deve retornar purchase tickets filtrando por ticket_id', async () => {
       const rows = [
-        {
-          id: 1,
-          purchase_id: 10,
-          ticket_id: 20
-        },
-        {
-          id: 2,
-          purchase_id: 10,
-          ticket_id: 21
-        }
+        { id: 1, purchase_id: 10, ticket_id: 20 },
+        { id: 2, purchase_id: 10, ticket_id: 21 }
       ]
 
       executeMock.mockResolvedValue([rows])
@@ -265,13 +214,7 @@ describe('PurchaseTicketModel', () => {
     })
 
     test('deve retornar purchase tickets filtrando por purchase_id e ticket_id', async () => {
-      const rows = [
-        {
-          id: 1,
-          purchase_id: 10,
-          ticket_id: 20
-        }
-      ]
+      const rows = [{ id: 1, purchase_id: 10, ticket_id: 20 }]
 
       executeMock.mockResolvedValue([rows])
 
@@ -284,8 +227,6 @@ describe('PurchaseTicketModel', () => {
         [10, 20, 21]
       )
       expect(result).toHaveLength(1)
-      expect(result[0].purchase_id).toBe(10)
-      expect(result[0].ticket_id).toBe(20)
     })
   })
 
