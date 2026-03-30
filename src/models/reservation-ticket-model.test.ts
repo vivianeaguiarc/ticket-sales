@@ -136,7 +136,7 @@ describe('ReservationTicketModel', () => {
   })
 
   describe('findAll', () => {
-    test('deve retornar todas as reservas', async () => {
+    test('deve retornar todas as reservas sem filtro', async () => {
       const rows = [
         {
           id: 1,
@@ -158,12 +158,140 @@ describe('ReservationTicketModel', () => {
 
       const result = await ReservationTicketModel.findAll()
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM reservation_tickets')
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM reservation_tickets', [])
       expect(result).toHaveLength(2)
       expect(result[0]).toBeInstanceOf(ReservationTicketModel)
       expect(result[1]).toBeInstanceOf(ReservationTicketModel)
       expect(result[0].status).toBe(ReservationStatus.reserved)
       expect(result[1].status).toBe(ReservationStatus.cancelled)
+    })
+
+    test('deve retornar reservas filtrando por customer_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          ticket_id: 20,
+          reservation_date: new Date('2026-03-30T12:00:00.000Z'),
+          status: ReservationStatus.reserved
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await ReservationTicketModel.findAll({
+        where: { customer_id: 10 }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM reservation_tickets WHERE customer_id = ?',
+        [10]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].customer_id).toBe(10)
+    })
+
+    test('deve retornar reservas filtrando por ticket_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          ticket_id: 20,
+          reservation_date: new Date('2026-03-30T12:00:00.000Z'),
+          status: ReservationStatus.reserved
+        },
+        {
+          id: 2,
+          customer_id: 10,
+          ticket_id: 21,
+          reservation_date: new Date('2026-03-30T13:00:00.000Z'),
+          status: ReservationStatus.reserved
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await ReservationTicketModel.findAll({
+        where: { ticket_id: [20, 21] }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM reservation_tickets WHERE ticket_id IN (?, ?)',
+        [20, 21]
+      )
+      expect(result).toHaveLength(2)
+    })
+
+    test('deve retornar reservas filtrando por status', async () => {
+      const rows = [
+        {
+          id: 2,
+          customer_id: 11,
+          ticket_id: 21,
+          reservation_date: new Date('2026-03-30T13:00:00.000Z'),
+          status: ReservationStatus.cancelled
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await ReservationTicketModel.findAll({
+        where: { status: ReservationStatus.cancelled }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM reservation_tickets WHERE status = ?',
+        [ReservationStatus.cancelled]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].status).toBe(ReservationStatus.cancelled)
+    })
+
+    test('deve retornar reservas filtrando por customer_id, ticket_id e status', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          ticket_id: 20,
+          reservation_date: new Date('2026-03-30T12:00:00.000Z'),
+          status: ReservationStatus.reserved
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await ReservationTicketModel.findAll({
+        where: {
+          customer_id: 10,
+          ticket_id: [20, 21],
+          status: ReservationStatus.reserved
+        }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM reservation_tickets WHERE customer_id = ? AND ticket_id IN (?, ?) AND status = ?',
+        [10, 20, 21, ReservationStatus.reserved]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].customer_id).toBe(10)
+      expect(result[0].ticket_id).toBe(20)
+      expect(result[0].status).toBe(ReservationStatus.reserved)
+    })
+
+    test('deve usar connection nas options quando fornecida', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([[]])
+
+      await ReservationTicketModel.findAll(undefined, {
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith('SELECT * FROM reservation_tickets', [])
+      expect(executeMock).not.toHaveBeenCalled()
     })
   })
 
@@ -228,7 +356,7 @@ describe('ReservationTicketModel', () => {
   })
 
   describe('delete', () => {
-    test('deve deletar uma reserva com sucesso', async () => {
+    test('deve deletar uma reserva com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const reservation = new ReservationTicketModel({
@@ -238,6 +366,30 @@ describe('ReservationTicketModel', () => {
       await reservation.delete()
 
       expect(executeMock).toHaveBeenCalledWith('DELETE FROM reservation_tickets WHERE id = ?', [1])
+    })
+
+    test('deve deletar uma reserva com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const reservation = new ReservationTicketModel({
+        id: 2
+      })
+
+      await reservation.delete({
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'DELETE FROM reservation_tickets WHERE id = ?',
+        [2]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
     })
 
     test('deve lançar erro ao tentar deletar reserva inexistente', async () => {
