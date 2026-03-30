@@ -24,27 +24,31 @@ export class PurchaseService {
       throw new Error('Customer not found')
     }
 
-    const tickets = await TicketModel.findAll({
-      where: { ids: data.ticketIds }
-    })
-
-    if (tickets.length !== data.ticketIds.length) {
-      throw new Error('Some tickets not found')
-    }
-
-    if (tickets.some((t) => t.status !== TicketStatus.available)) {
-      throw new Error('Some tickets are not available')
-    }
-
-    const amount = tickets.reduce((total, ticket) => total + ticket.price, 0)
-
     const db = Database.getInstance()
     const connection = await db.getConnection()
 
     let purchase: PurchaseModel | undefined
+    let tickets: TicketModel[] = []
 
     try {
       await connection.beginTransaction()
+
+      tickets = await TicketModel.findAll(
+        {
+          where: { ids: data.ticketIds }
+        },
+        { connection }
+      )
+
+      if (tickets.length !== data.ticketIds.length) {
+        throw new Error('Some tickets not found')
+      }
+
+      if (tickets.some((ticket) => ticket.status !== TicketStatus.available)) {
+        throw new Error('Some tickets are not available')
+      }
+
+      const amount = tickets.reduce((total, ticket) => total + ticket.price, 0)
 
       for (const ticket of tickets) {
         ticket.status = TicketStatus.reserved
@@ -102,8 +106,12 @@ export class PurchaseService {
       }
 
       if (purchase) {
-        purchase.status = PurchaseStatus.error
-        await purchase.update({ connection })
+        try {
+          purchase.status = PurchaseStatus.error
+          await purchase.update({ connection })
+        } catch {
+          // evita mascarar o erro original
+        }
       }
 
       throw error
