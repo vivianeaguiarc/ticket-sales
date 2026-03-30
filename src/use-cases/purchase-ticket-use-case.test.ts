@@ -9,7 +9,9 @@ const {
   releaseMock,
   createManyMock,
   reserveIfAvailableMock,
-  markAsSoldMock
+  markAsSoldMock,
+  findAllMock,
+  createPurchaseMock
 } = vi.hoisted(() => {
   return {
     getInstanceMock: vi.fn(),
@@ -20,7 +22,9 @@ const {
     releaseMock: vi.fn(),
     createManyMock: vi.fn(),
     reserveIfAvailableMock: vi.fn(),
-    markAsSoldMock: vi.fn()
+    markAsSoldMock: vi.fn(),
+    findAllMock: vi.fn(),
+    createPurchaseMock: vi.fn()
   }
 })
 
@@ -40,11 +44,26 @@ vi.mock('../models/purchase-ticket-model.js', () => {
   }
 })
 
+vi.mock('../models/purchase-model.js', () => {
+  return {
+    PurchaseStatus: {
+      pending: 'pending',
+      paid: 'paid',
+      error: 'error',
+      cancelled: 'cancelled'
+    },
+    PurchaseModel: {
+      create: createPurchaseMock
+    }
+  }
+})
+
 vi.mock('../models/ticket-model.js', () => {
   return {
     TicketModel: {
       reserveIfAvailable: reserveIfAvailableMock,
-      markAsSold: markAsSoldMock
+      markAsSold: markAsSoldMock,
+      findAll: findAllMock
     }
   }
 })
@@ -76,13 +95,25 @@ describe('PurchaseTicketUseCase', () => {
   })
 
   test('deve comprar tickets com sucesso', async () => {
+    findAllMock.mockResolvedValue([
+      { id: 101, price: 150 },
+      { id: 102, price: 200 }
+    ])
+
+    createPurchaseMock.mockResolvedValue({
+      id: 10,
+      customer_id: 5,
+      total_amount: 350,
+      status: 'paid'
+    })
+
     createManyMock.mockResolvedValue([
       { id: 1, purchase_id: 10, ticket_id: 101 },
       { id: 2, purchase_id: 10, ticket_id: 102 }
     ])
 
     const result = await PurchaseTicketUseCase.execute({
-      purchase_id: 10,
+      customer_id: 5,
       ticket_ids: [101, 102]
     })
 
@@ -95,6 +126,28 @@ describe('PurchaseTicketUseCase', () => {
     expect(reserveIfAvailableMock).toHaveBeenNthCalledWith(2, 102, {
       connection: expect.any(Object)
     })
+
+    expect(findAllMock).toHaveBeenCalledWith(
+      {
+        where: {
+          ids: [101, 102]
+        }
+      },
+      {
+        connection: expect.any(Object)
+      }
+    )
+
+    expect(createPurchaseMock).toHaveBeenCalledWith(
+      {
+        customer_id: 5,
+        total_amount: 350,
+        status: 'paid'
+      },
+      {
+        connection: expect.any(Object)
+      }
+    )
 
     expect(createManyMock).toHaveBeenCalledWith(
       [
@@ -116,22 +169,27 @@ describe('PurchaseTicketUseCase', () => {
 
     expect(commitMock).toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalled()
-    expect(result).toHaveLength(2)
+    expect(result).toEqual({
+      id: 10,
+      customer_id: 5,
+      total_amount: 350,
+      status: 'paid'
+    })
   })
 
-  test('deve lançar erro se purchase_id não for informado', async () => {
+  test('deve lançar erro se customer_id não for informado', async () => {
     await expect(
       PurchaseTicketUseCase.execute({
-        purchase_id: 0,
+        customer_id: 0,
         ticket_ids: [101]
       })
-    ).rejects.toThrow('Purchase id is required')
+    ).rejects.toThrow('Customer id is required')
   })
 
   test('deve lançar erro se não informar ticket_ids', async () => {
     await expect(
       PurchaseTicketUseCase.execute({
-        purchase_id: 10,
+        customer_id: 5,
         ticket_ids: []
       })
     ).rejects.toThrow('At least one ticket id is required')
@@ -142,7 +200,7 @@ describe('PurchaseTicketUseCase', () => {
 
     await expect(
       PurchaseTicketUseCase.execute({
-        purchase_id: 10,
+        customer_id: 5,
         ticket_ids: [101, 102]
       })
     ).rejects.toThrow('Ticket is no longer available')
@@ -152,12 +210,52 @@ describe('PurchaseTicketUseCase', () => {
     expect(releaseMock).toHaveBeenCalled()
   })
 
+  test('deve fazer rollback se um ou mais tickets não forem encontrados', async () => {
+    findAllMock.mockResolvedValue([{ id: 101, price: 150 }])
+
+    await expect(
+      PurchaseTicketUseCase.execute({
+        customer_id: 5,
+        ticket_ids: [101, 102]
+      })
+    ).rejects.toThrow('One or more tickets not found')
+
+    expect(beginTransactionMock).toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
+  })
+
+  test('deve fazer rollback se create da purchase lançar erro', async () => {
+    findAllMock.mockResolvedValue([{ id: 101, price: 150 }])
+    createPurchaseMock.mockRejectedValue(new Error('Database error'))
+
+    await expect(
+      PurchaseTicketUseCase.execute({
+        customer_id: 5,
+        ticket_ids: [101]
+      })
+    ).rejects.toThrow('Database error')
+
+    expect(beginTransactionMock).toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
+  })
+
   test('deve fazer rollback se createMany lançar erro', async () => {
+    findAllMock.mockResolvedValue([{ id: 101, price: 150 }])
+
+    createPurchaseMock.mockResolvedValue({
+      id: 10,
+      customer_id: 5,
+      total_amount: 150,
+      status: 'paid'
+    })
+
     createManyMock.mockRejectedValue(new Error('Database error'))
 
     await expect(
       PurchaseTicketUseCase.execute({
-        purchase_id: 10,
+        customer_id: 5,
         ticket_ids: [101]
       })
     ).rejects.toThrow('Database error')
@@ -168,12 +266,21 @@ describe('PurchaseTicketUseCase', () => {
   })
 
   test('deve fazer rollback se markAsSold lançar erro', async () => {
+    findAllMock.mockResolvedValue([{ id: 101, price: 150 }])
+
+    createPurchaseMock.mockResolvedValue({
+      id: 10,
+      customer_id: 5,
+      total_amount: 150,
+      status: 'paid'
+    })
+
     createManyMock.mockResolvedValue([{ id: 1, purchase_id: 10, ticket_id: 101 }])
     markAsSoldMock.mockRejectedValue(new Error('Ticket is not reserved'))
 
     await expect(
       PurchaseTicketUseCase.execute({
-        purchase_id: 10,
+        customer_id: 5,
         ticket_ids: [101]
       })
     ).rejects.toThrow('Ticket is not reserved')
