@@ -142,8 +142,18 @@ describe('PurchaseService', () => {
       }
 
       const tickets = [
-        { id: 10, price: 100, status: TicketStatus.available },
-        { id: 11, price: 150, status: TicketStatus.available }
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.available,
+          update: vi.fn()
+        },
+        {
+          id: 11,
+          price: 150,
+          status: TicketStatus.available,
+          update: vi.fn()
+        }
       ]
 
       const purchase = {
@@ -190,10 +200,21 @@ describe('PurchaseService', () => {
         { connection }
       )
 
-      expect(createReservationMock).toHaveBeenCalledWith(
+      expect(createReservationMock).toHaveBeenCalledTimes(2)
+      expect(createReservationMock).toHaveBeenNthCalledWith(
+        1,
         {
           customer_id: 1,
           ticket_id: 10,
+          status: ReservationStatus.reserved
+        },
+        { connection }
+      )
+      expect(createReservationMock).toHaveBeenNthCalledWith(
+        2,
+        {
+          customer_id: 1,
+          ticket_id: 11,
           status: ReservationStatus.reserved
         },
         { connection }
@@ -210,6 +231,11 @@ describe('PurchaseService', () => {
         'valid_token_123'
       )
 
+      expect(tickets[0].update).toHaveBeenCalledTimes(2)
+      expect(tickets[1].update).toHaveBeenCalledTimes(2)
+      expect(tickets[0].update).toHaveBeenCalledWith({ connection })
+      expect(tickets[1].update).toHaveBeenCalledWith({ connection })
+
       expect(purchase.update).toHaveBeenCalledWith({ connection })
 
       expect(beginTransactionMock).toHaveBeenCalledTimes(1)
@@ -217,6 +243,8 @@ describe('PurchaseService', () => {
       expect(rollbackMock).not.toHaveBeenCalled()
       expect(releaseMock).toHaveBeenCalledTimes(1)
 
+      expect(tickets[0].status).toBe(TicketStatus.sold)
+      expect(tickets[1].status).toBe(TicketStatus.sold)
       expect(purchase.status).toBe(PurchaseStatus.paid)
       expect(result).toBe(99)
     })
@@ -255,7 +283,14 @@ describe('PurchaseService', () => {
       }
 
       findCustomerByIdMock.mockResolvedValue(customer)
-      findTicketsMock.mockResolvedValue([{ id: 10, price: 100, status: TicketStatus.available }])
+      findTicketsMock.mockResolvedValue([
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.available,
+          update: vi.fn()
+        }
+      ])
 
       await expect(
         purchaseService.create({
@@ -284,8 +319,18 @@ describe('PurchaseService', () => {
       }
 
       const tickets = [
-        { id: 10, price: 100, status: TicketStatus.available },
-        { id: 11, price: 150, status: TicketStatus.sold }
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.available,
+          update: vi.fn()
+        },
+        {
+          id: 11,
+          price: 150,
+          status: TicketStatus.sold,
+          update: vi.fn()
+        }
       ]
 
       findCustomerByIdMock.mockResolvedValue(customer)
@@ -318,8 +363,18 @@ describe('PurchaseService', () => {
       }
 
       const tickets = [
-        { id: 10, price: 100, status: TicketStatus.available },
-        { id: 11, price: 150, status: TicketStatus.available }
+        {
+          id: 10,
+          price: 100,
+          status: TicketStatus.available,
+          update: vi.fn()
+        },
+        {
+          id: 11,
+          price: 150,
+          status: TicketStatus.available,
+          update: vi.fn()
+        }
       ]
 
       const purchase = {
@@ -345,11 +400,17 @@ describe('PurchaseService', () => {
         })
       ).rejects.toThrow('Payment failed')
 
+      expect(createReservationMock).toHaveBeenCalledTimes(2)
+      expect(tickets[0].update).toHaveBeenCalledTimes(1)
+      expect(tickets[1].update).toHaveBeenCalledTimes(1)
+
       expect(beginTransactionMock).toHaveBeenCalledTimes(1)
       expect(commitMock).not.toHaveBeenCalled()
       expect(rollbackMock).toHaveBeenCalledTimes(1)
       expect(releaseMock).toHaveBeenCalledTimes(1)
 
+      expect(tickets[0].status).toBe(TicketStatus.available)
+      expect(tickets[1].status).toBe(TicketStatus.available)
       expect(purchase.status).toBe(PurchaseStatus.error)
       expect(purchase.update).toHaveBeenCalledTimes(1)
       expect(purchase.update).toHaveBeenCalledWith({ connection })
