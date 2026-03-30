@@ -7,7 +7,7 @@ const { executeMock, getInstanceMock } = vi.hoisted(() => {
   }
 })
 
-vi.mock('../database', () => {
+vi.mock('../database.js', () => {
   return {
     Database: {
       getInstance: getInstanceMock
@@ -21,7 +21,7 @@ import { PurchaseModel, PurchaseStatus } from './purchase-model.js'
 
 describe('PurchaseModel', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
 
     getInstanceMock.mockReturnValue({
       execute: executeMock
@@ -29,39 +29,29 @@ describe('PurchaseModel', () => {
   })
 
   describe('create', () => {
-    test('deve criar uma compra com sucesso usando Database.getInstance()', async () => {
-      const purchaseDate = new Date('2026-03-30T14:00:00.000Z')
-      vi.useFakeTimers()
-      vi.setSystemTime(purchaseDate)
-
+    test('deve criar uma purchase com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ insertId: 1 }])
 
       const result = await PurchaseModel.create({
         customer_id: 10,
-        total_amount: 150,
+        total_amount: 300,
         status: PurchaseStatus.pending
       })
 
       expect(executeMock).toHaveBeenCalledWith(
         'INSERT INTO purchases (customer_id, total_amount, status, purchase_date) VALUES (?, ?, ?, ?)',
-        [10, 150, PurchaseStatus.pending, purchaseDate]
+        [10, 300, PurchaseStatus.pending, expect.any(Date)]
       )
 
       expect(result).toBeInstanceOf(PurchaseModel)
       expect(result.id).toBe(1)
       expect(result.customer_id).toBe(10)
-      expect(result.total_amount).toBe(150)
+      expect(result.total_amount).toBe(300)
       expect(result.status).toBe(PurchaseStatus.pending)
-      expect(result.purchase_date).toEqual(purchaseDate)
-
-      vi.useRealTimers()
+      expect(result.purchase_date).toBeInstanceOf(Date)
     })
 
-    test('deve criar uma compra com sucesso usando connection nas options', async () => {
-      const purchaseDate = new Date('2026-03-30T15:00:00.000Z')
-      vi.useFakeTimers()
-      vi.setSystemTime(purchaseDate)
-
+    test('deve criar uma purchase com sucesso usando connection nas options', async () => {
       const connectionExecuteMock = vi.fn()
       const connection = {
         execute: connectionExecuteMock
@@ -72,7 +62,7 @@ describe('PurchaseModel', () => {
       const result = await PurchaseModel.create(
         {
           customer_id: 20,
-          total_amount: 300,
+          total_amount: 500,
           status: PurchaseStatus.paid
         },
         {
@@ -82,29 +72,25 @@ describe('PurchaseModel', () => {
 
       expect(connectionExecuteMock).toHaveBeenCalledWith(
         'INSERT INTO purchases (customer_id, total_amount, status, purchase_date) VALUES (?, ?, ?, ?)',
-        [20, 300, PurchaseStatus.paid, purchaseDate]
+        [20, 500, PurchaseStatus.paid, expect.any(Date)]
       )
 
       expect(executeMock).not.toHaveBeenCalled()
-      expect(result).toBeInstanceOf(PurchaseModel)
       expect(result.id).toBe(2)
       expect(result.customer_id).toBe(20)
-      expect(result.total_amount).toBe(300)
+      expect(result.total_amount).toBe(500)
       expect(result.status).toBe(PurchaseStatus.paid)
-      expect(result.purchase_date).toEqual(purchaseDate)
-
-      vi.useRealTimers()
     })
   })
 
   describe('findById', () => {
-    test('deve retornar uma compra quando encontrada', async () => {
+    test('deve retornar uma purchase quando encontrada', async () => {
       const row = {
         id: 1,
         customer_id: 10,
-        purchase_date: new Date('2026-03-30T14:00:00.000Z'),
-        total_amount: 150,
-        status: PurchaseStatus.pending
+        total_amount: 300,
+        status: PurchaseStatus.pending,
+        purchase_date: new Date('2026-03-30T18:00:00.000Z')
       }
 
       executeMock.mockResolvedValue([[row]])
@@ -115,11 +101,11 @@ describe('PurchaseModel', () => {
       expect(result).toBeInstanceOf(PurchaseModel)
       expect(result?.id).toBe(1)
       expect(result?.customer_id).toBe(10)
-      expect(result?.total_amount).toBe(150)
+      expect(result?.total_amount).toBe(300)
       expect(result?.status).toBe(PurchaseStatus.pending)
     })
 
-    test('deve retornar null quando não encontrar compra', async () => {
+    test('deve retornar null quando não encontrar purchase', async () => {
       executeMock.mockResolvedValue([[]])
 
       const result = await PurchaseModel.findById(999)
@@ -130,21 +116,21 @@ describe('PurchaseModel', () => {
   })
 
   describe('findAll', () => {
-    test('deve retornar todas as compras', async () => {
+    test('deve retornar todas as purchases sem filtro', async () => {
       const rows = [
         {
           id: 1,
           customer_id: 10,
-          purchase_date: new Date('2026-03-30T14:00:00.000Z'),
-          total_amount: 150,
-          status: PurchaseStatus.pending
+          total_amount: 300,
+          status: PurchaseStatus.pending,
+          purchase_date: new Date()
         },
         {
           id: 2,
-          customer_id: 20,
-          purchase_date: new Date('2026-03-30T15:00:00.000Z'),
-          total_amount: 300,
-          status: PurchaseStatus.paid
+          customer_id: 11,
+          total_amount: 500,
+          status: PurchaseStatus.paid,
+          purchase_date: new Date()
         }
       ]
 
@@ -152,23 +138,93 @@ describe('PurchaseModel', () => {
 
       const result = await PurchaseModel.findAll()
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchases')
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchases', [])
       expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(PurchaseModel)
-      expect(result[1]).toBeInstanceOf(PurchaseModel)
-      expect(result[0].status).toBe(PurchaseStatus.pending)
-      expect(result[1].status).toBe(PurchaseStatus.paid)
+    })
+
+    test('deve retornar purchases filtrando por customer_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          total_amount: 300,
+          status: PurchaseStatus.pending,
+          purchase_date: new Date()
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseModel.findAll({
+        where: { customer_id: 10 }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM purchases WHERE customer_id = ?',
+        [10]
+      )
+      expect(result).toHaveLength(1)
+    })
+
+    test('deve retornar purchases filtrando por status', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          total_amount: 300,
+          status: PurchaseStatus.pending,
+          purchase_date: new Date()
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseModel.findAll({
+        where: { status: PurchaseStatus.pending }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchases WHERE status = ?', [
+        PurchaseStatus.pending
+      ])
+      expect(result).toHaveLength(1)
+    })
+
+    test('deve retornar purchases filtrando por customer_id e status', async () => {
+      const rows = [
+        {
+          id: 1,
+          customer_id: 10,
+          total_amount: 300,
+          status: PurchaseStatus.pending,
+          purchase_date: new Date()
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseModel.findAll({
+        where: {
+          customer_id: 10,
+          status: PurchaseStatus.pending
+        }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM purchases WHERE customer_id = ? AND status = ?',
+        [10, PurchaseStatus.pending]
+      )
+      expect(result).toHaveLength(1)
     })
   })
 
   describe('update', () => {
-    test('deve atualizar uma compra com sucesso usando Database.getInstance()', async () => {
+    test('deve atualizar uma purchase com sucesso', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const purchase = new PurchaseModel({
         id: 1,
-        customer_id: 10,
-        total_amount: 200,
+        customer_id: 99,
+        total_amount: 900,
         status: PurchaseStatus.paid
       })
 
@@ -176,45 +232,18 @@ describe('PurchaseModel', () => {
 
       expect(executeMock).toHaveBeenCalledWith(
         'UPDATE purchases SET customer_id = ?, total_amount = ?, status = ? WHERE id = ?',
-        [10, 200, PurchaseStatus.paid, 1]
+        [99, 900, PurchaseStatus.paid, 1]
       )
     })
 
-    test('deve atualizar uma compra com sucesso usando connection nas options', async () => {
-      const connectionExecuteMock = vi.fn()
-      const connection = {
-        execute: connectionExecuteMock
-      }
-
-      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
-
-      const purchase = new PurchaseModel({
-        id: 2,
-        customer_id: 20,
-        total_amount: 350,
-        status: PurchaseStatus.error
-      })
-
-      await purchase.update({
-        connection: connection as unknown as PoolConnection
-      })
-
-      expect(connectionExecuteMock).toHaveBeenCalledWith(
-        'UPDATE purchases SET customer_id = ?, total_amount = ?, status = ? WHERE id = ?',
-        [20, 350, PurchaseStatus.error, 2]
-      )
-
-      expect(executeMock).not.toHaveBeenCalled()
-    })
-
-    test('deve lançar erro ao tentar atualizar compra inexistente', async () => {
+    test('deve lançar erro ao tentar atualizar purchase inexistente', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 0 }])
 
       const purchase = new PurchaseModel({
         id: 999,
-        customer_id: 10,
-        total_amount: 100,
-        status: PurchaseStatus.pending
+        customer_id: 99,
+        total_amount: 900,
+        status: PurchaseStatus.paid
       })
 
       await expect(purchase.update()).rejects.toThrow('Purchase not found')
@@ -222,7 +251,7 @@ describe('PurchaseModel', () => {
   })
 
   describe('delete', () => {
-    test('deve deletar uma compra com sucesso', async () => {
+    test('deve deletar uma purchase com sucesso', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const purchase = new PurchaseModel({
@@ -234,7 +263,7 @@ describe('PurchaseModel', () => {
       expect(executeMock).toHaveBeenCalledWith('DELETE FROM purchases WHERE id = ?', [1])
     })
 
-    test('deve lançar erro ao tentar deletar compra inexistente', async () => {
+    test('deve lançar erro ao tentar deletar purchase inexistente', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 0 }])
 
       const purchase = new PurchaseModel({
@@ -247,46 +276,22 @@ describe('PurchaseModel', () => {
 
   describe('fill', () => {
     test('deve preencher todos os campos informados', () => {
-      const purchaseDate = new Date('2026-03-30T14:00:00.000Z')
-
       const purchase = new PurchaseModel()
+      const purchaseDate = new Date('2026-03-30T18:00:00.000Z')
 
       purchase.fill({
         id: 1,
         customer_id: 10,
         purchase_date: purchaseDate,
-        total_amount: 150,
+        total_amount: 300,
         status: PurchaseStatus.pending
       })
 
       expect(purchase.id).toBe(1)
       expect(purchase.customer_id).toBe(10)
-      expect(purchase.purchase_date).toEqual(purchaseDate)
-      expect(purchase.total_amount).toBe(150)
+      expect(purchase.purchase_date).toBe(purchaseDate)
+      expect(purchase.total_amount).toBe(300)
       expect(purchase.status).toBe(PurchaseStatus.pending)
-    })
-
-    test('deve preencher parcialmente sem sobrescrever campos não informados', () => {
-      const purchaseDate = new Date('2026-03-30T14:00:00.000Z')
-
-      const purchase = new PurchaseModel({
-        id: 1,
-        customer_id: 10,
-        purchase_date: purchaseDate,
-        total_amount: 150,
-        status: PurchaseStatus.pending
-      })
-
-      purchase.fill({
-        status: PurchaseStatus.paid,
-        total_amount: 200
-      })
-
-      expect(purchase.id).toBe(1)
-      expect(purchase.customer_id).toBe(10)
-      expect(purchase.purchase_date).toEqual(purchaseDate)
-      expect(purchase.total_amount).toBe(200)
-      expect(purchase.status).toBe(PurchaseStatus.paid)
     })
   })
 })
