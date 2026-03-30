@@ -60,6 +60,7 @@ export class ReservationTicketModel {
         customer_id?: number
         ticket_id?: number[]
         status?: ReservationStatus
+        reserved_before?: Date
       }
     },
     options?: { connection?: PoolConnection }
@@ -67,10 +68,10 @@ export class ReservationTicketModel {
     const db = options?.connection ?? Database.getInstance()
 
     let query = 'SELECT * FROM reservation_tickets'
-    const params: (number | string)[] = []
+    const params: (number | string | Date)[] = []
 
     if (filter?.where) {
-      const where = []
+      const where: string[] = []
 
       if (filter.where.customer_id !== undefined) {
         where.push('customer_id = ?')
@@ -85,6 +86,11 @@ export class ReservationTicketModel {
       if (filter.where.status !== undefined) {
         where.push('status = ?')
         params.push(filter.where.status)
+      }
+
+      if (filter.where.reserved_before !== undefined) {
+        where.push('reservation_date < ?')
+        params.push(filter.where.reserved_before)
       }
 
       if (where.length > 0) {
