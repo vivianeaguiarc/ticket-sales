@@ -1,6 +1,8 @@
 import { Request, Response, Router } from 'express'
 
 import { CustomerService } from '../services/customer-service.js'
+import { PaymentService } from '../services/payment-service.js'
+import { PurchaseService } from '../services/purchase-service.js'
 
 export const purchaseRoutes = Router()
 
@@ -13,5 +15,17 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
     return
   }
 
-  res.status(501).json({ message: 'Purchase service not implemented yet' })
+  const { ticket_ids, card_token } = req.body
+  //design pattern - factory | container de serviços
+  const paymentService = new PaymentService()
+  const purchaseService = new PurchaseService(paymentService)
+  const newPurchaseId = await purchaseService.create({
+    customerId: customer.id,
+    ticketIds: ticket_ids,
+    cardToken: card_token
+  })
+
+  const purchase = await purchaseService.findById(newPurchaseId)
+
+  res.status(201).json(purchase)
 })
