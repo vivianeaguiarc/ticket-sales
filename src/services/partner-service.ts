@@ -9,8 +9,8 @@ export class PartnerService {
 
     try {
       await connection.beginTransaction()
-      const user = await UserModel.create({ name, email, password })
-      const partner = await PartnerModel.create({ user_id: user.id, company_name })
+      const user = await UserModel.create({ name, email, password }, { connection })
+      const partner = await PartnerModel.create({ user_id: user.id, company_name }, { connection })
       await connection.commit()
       return {
         id: partner.id,
@@ -26,7 +26,16 @@ export class PartnerService {
       await connection.end()
     }
   }
+
+  async findById(id: number) {
+    return PartnerModel.findById(id)
+  }
+
   async findByUserId(userId: number) {
-    return PartnerModel.findByUserId(userId, { user: true })
+    return PartnerModel.findByUserId(userId)
+  }
+
+  async findAll() {
+    return PartnerModel.findAll()
   }
 }

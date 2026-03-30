@@ -84,6 +84,14 @@ describe('PartnerService', () => {
         created_at: new Date()
       }
 
+      const connection = {
+        beginTransaction: beginTransactionMock,
+        commit: commitMock,
+        rollback: rollbackMock,
+        end: endMock
+      }
+
+      getConnectionMock.mockResolvedValue(connection)
       userCreateMock.mockResolvedValue(mockUser)
       partnerCreateMock.mockResolvedValue(mockPartner)
 
@@ -91,16 +99,26 @@ describe('PartnerService', () => {
 
       expect(beginTransactionMock).toHaveBeenCalledTimes(1)
 
-      expect(userCreateMock).toHaveBeenCalledWith({
-        name: input.name,
-        email: input.email,
-        password: input.password
-      })
+      expect(userCreateMock).toHaveBeenCalledWith(
+        {
+          name: input.name,
+          email: input.email,
+          password: input.password
+        },
+        {
+          connection
+        }
+      )
 
-      expect(partnerCreateMock).toHaveBeenCalledWith({
-        user_id: mockUser.id,
-        company_name: input.company_name
-      })
+      expect(partnerCreateMock).toHaveBeenCalledWith(
+        {
+          user_id: mockUser.id,
+          company_name: input.company_name
+        },
+        {
+          connection
+        }
+      )
 
       expect(commitMock).toHaveBeenCalledTimes(1)
       expect(rollbackMock).not.toHaveBeenCalled()
@@ -125,12 +143,31 @@ describe('PartnerService', () => {
 
       const error = new Error('User create error')
 
+      const connection = {
+        beginTransaction: beginTransactionMock,
+        commit: commitMock,
+        rollback: rollbackMock,
+        end: endMock
+      }
+
+      getConnectionMock.mockResolvedValue(connection)
       userCreateMock.mockRejectedValue(error)
 
       await expect(partnerService.register(input)).rejects.toThrow('User create error')
 
       expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-      expect(userCreateMock).toHaveBeenCalledTimes(1)
+
+      expect(userCreateMock).toHaveBeenCalledWith(
+        {
+          name: input.name,
+          email: input.email,
+          password: input.password
+        },
+        {
+          connection
+        }
+      )
+
       expect(partnerCreateMock).not.toHaveBeenCalled()
       expect(commitMock).not.toHaveBeenCalled()
       expect(rollbackMock).toHaveBeenCalledTimes(1)
@@ -151,6 +188,14 @@ describe('PartnerService', () => {
 
       const error = new Error('Partner create error')
 
+      const connection = {
+        beginTransaction: beginTransactionMock,
+        commit: commitMock,
+        rollback: rollbackMock,
+        end: endMock
+      }
+
+      getConnectionMock.mockResolvedValue(connection)
       userCreateMock.mockResolvedValue(mockUser)
       partnerCreateMock.mockRejectedValue(error)
 
@@ -158,16 +203,26 @@ describe('PartnerService', () => {
 
       expect(beginTransactionMock).toHaveBeenCalledTimes(1)
 
-      expect(userCreateMock).toHaveBeenCalledWith({
-        name: input.name,
-        email: input.email,
-        password: input.password
-      })
+      expect(userCreateMock).toHaveBeenCalledWith(
+        {
+          name: input.name,
+          email: input.email,
+          password: input.password
+        },
+        {
+          connection
+        }
+      )
 
-      expect(partnerCreateMock).toHaveBeenCalledWith({
-        user_id: mockUser.id,
-        company_name: input.company_name
-      })
+      expect(partnerCreateMock).toHaveBeenCalledWith(
+        {
+          user_id: mockUser.id,
+          company_name: input.company_name
+        },
+        {
+          connection
+        }
+      )
 
       expect(commitMock).not.toHaveBeenCalled()
       expect(rollbackMock).toHaveBeenCalledTimes(1)
@@ -187,7 +242,7 @@ describe('PartnerService', () => {
 
       const result = await partnerService.findByUserId(1)
 
-      expect(PartnerModel.findByUserId).toHaveBeenCalledWith(1, { user: true })
+      expect(PartnerModel.findByUserId).toHaveBeenCalledWith(1)
       expect(result).toEqual(mockPartner)
     })
   })

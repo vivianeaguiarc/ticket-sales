@@ -120,6 +120,38 @@ pnpm test:watch
 
 ---
 
+## 🏗️ Architecture --- Hexagonal (Ports & Adapters)
+
+```text
+                ┌──────────────────────────────┐
+                │        HTTP Layer            │
+                │   (Controllers / Routes)     │
+                └─────────────┬────────────────┘
+                              │
+                              ▼
+                ┌──────────────────────────────┐
+                │     Application Layer        │
+                │      (Use Cases)             │
+                └─────────────┬────────────────┘
+                              │
+                              ▼
+                ┌──────────────────────────────┐
+                │       Domain Layer           │
+                │   (Entities + Rules)         │
+                └─────────────┬────────────────┘
+                              │
+          ┌───────────────────┴───────────────────┐
+          ▼                                       ▼
+┌──────────────────────┐              ┌──────────────────────┐
+│   Database Adapter   │              │ External Services    │
+│   (MySQL/Postgres)   │              │ (Future integrations)│
+└──────────────────────┘              └──────────────────────┘
+```
+
+---
+
+---
+
 ## 🛠️ Tecnologias
 
 <p align="center">
