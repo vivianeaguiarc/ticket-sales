@@ -2,13 +2,15 @@ import express, { NextFunction, Request, Response } from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { findByUserIdMock, createPurchaseMock, findPurchaseByIdMock } = vi.hoisted(() => {
-  return {
-    findByUserIdMock: vi.fn(),
-    createPurchaseMock: vi.fn(),
-    findPurchaseByIdMock: vi.fn()
-  }
-})
+const { findByUserIdMock, createPurchaseMock, findPurchaseByIdMock, cancelPurchaseMock } =
+  vi.hoisted(() => {
+    return {
+      findByUserIdMock: vi.fn(),
+      createPurchaseMock: vi.fn(),
+      findPurchaseByIdMock: vi.fn(),
+      cancelPurchaseMock: vi.fn()
+    }
+  })
 
 vi.mock('../services/customer-service', () => {
   class CustomerService {
@@ -32,6 +34,7 @@ vi.mock('../services/purchase-service', () => {
   class PurchaseService {
     create = createPurchaseMock
     findById = findPurchaseByIdMock
+    cancel = cancelPurchaseMock
   }
 
   return {
@@ -114,5 +117,18 @@ describe('purchaseRoutes', () => {
       cardToken: 'valid_token_123'
     })
     expect(findPurchaseByIdMock).toHaveBeenCalledWith(99)
+  })
+
+  test('deve cancelar uma compra com sucesso e retornar 200', async () => {
+    cancelPurchaseMock.mockResolvedValue(undefined)
+
+    const response = await request(app).post('/purchases/99/cancel').send()
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      message: 'Purchase cancelled successfully'
+    })
+
+    expect(cancelPurchaseMock).toHaveBeenCalledWith(99)
   })
 })
