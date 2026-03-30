@@ -150,8 +150,6 @@ pnpm test:watch
 
 ---
 
----
-
 ## 🛠️ Tecnologias
 
 <p align="center">
