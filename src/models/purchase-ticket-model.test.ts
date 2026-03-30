@@ -29,7 +29,7 @@ describe('PurchaseTicketModel', () => {
   })
 
   describe('create', () => {
-    test('deve criar um purchase ticket com sucesso', async () => {
+    test('deve criar um purchase ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ insertId: 1 }])
 
       const result = await PurchaseTicketModel.create({
@@ -46,6 +46,36 @@ describe('PurchaseTicketModel', () => {
       expect(result.id).toBe(1)
       expect(result.purchase_id).toBe(10)
       expect(result.ticket_id).toBe(20)
+    })
+
+    test('deve criar um purchase ticket com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ insertId: 2 }])
+
+      const result = await PurchaseTicketModel.create(
+        {
+          purchase_id: 30,
+          ticket_id: 40
+        },
+        {
+          connection: connection as unknown as PoolConnection
+        }
+      )
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'INSERT INTO purchase_tickets (purchase_id, ticket_id) VALUES (?, ?)',
+        [30, 40]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
+      expect(result).toBeInstanceOf(PurchaseTicketModel)
+      expect(result.id).toBe(2)
+      expect(result.purchase_id).toBe(30)
+      expect(result.ticket_id).toBe(40)
     })
   })
 
@@ -158,7 +188,7 @@ describe('PurchaseTicketModel', () => {
   })
 
   describe('findAll', () => {
-    test('deve retornar todos os purchase tickets', async () => {
+    test('deve retornar todos os purchase tickets sem filtro', async () => {
       const rows = [
         {
           id: 1,
@@ -176,17 +206,91 @@ describe('PurchaseTicketModel', () => {
 
       const result = await PurchaseTicketModel.findAll()
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchase_tickets')
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM purchase_tickets', [])
       expect(result).toHaveLength(2)
       expect(result[0]).toBeInstanceOf(PurchaseTicketModel)
       expect(result[1]).toBeInstanceOf(PurchaseTicketModel)
       expect(result[0].purchase_id).toBe(10)
       expect(result[1].ticket_id).toBe(21)
     })
+
+    test('deve retornar purchase tickets filtrando por purchase_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          purchase_id: 10,
+          ticket_id: 20
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseTicketModel.findAll({
+        where: { purchase_id: 10 }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM purchase_tickets WHERE purchase_id = ?',
+        [10]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].purchase_id).toBe(10)
+    })
+
+    test('deve retornar purchase tickets filtrando por ticket_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          purchase_id: 10,
+          ticket_id: 20
+        },
+        {
+          id: 2,
+          purchase_id: 10,
+          ticket_id: 21
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseTicketModel.findAll({
+        where: { ticket_id: [20, 21] }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM purchase_tickets WHERE ticket_id IN (?, ?)',
+        [20, 21]
+      )
+      expect(result).toHaveLength(2)
+    })
+
+    test('deve retornar purchase tickets filtrando por purchase_id e ticket_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          purchase_id: 10,
+          ticket_id: 20
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseTicketModel.findAll({
+        where: { purchase_id: 10, ticket_id: [20, 21] }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM purchase_tickets WHERE purchase_id = ? AND ticket_id IN (?, ?)',
+        [10, 20, 21]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].purchase_id).toBe(10)
+      expect(result[0].ticket_id).toBe(20)
+    })
   })
 
   describe('update', () => {
-    test('deve atualizar um purchase ticket com sucesso', async () => {
+    test('deve atualizar um purchase ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const purchaseTicket = new PurchaseTicketModel({
@@ -203,6 +307,32 @@ describe('PurchaseTicketModel', () => {
       )
     })
 
+    test('deve atualizar um purchase ticket com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const purchaseTicket = new PurchaseTicketModel({
+        id: 2,
+        purchase_id: 50,
+        ticket_id: 60
+      })
+
+      await purchaseTicket.update({
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'UPDATE purchase_tickets SET purchase_id = ?, ticket_id = ? WHERE id = ?',
+        [50, 60, 2]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
+    })
+
     test('deve lançar erro ao tentar atualizar purchase ticket inexistente', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 0 }])
 
@@ -217,7 +347,7 @@ describe('PurchaseTicketModel', () => {
   })
 
   describe('delete', () => {
-    test('deve deletar um purchase ticket com sucesso', async () => {
+    test('deve deletar um purchase ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const purchaseTicket = new PurchaseTicketModel({
@@ -227,6 +357,30 @@ describe('PurchaseTicketModel', () => {
       await purchaseTicket.delete()
 
       expect(executeMock).toHaveBeenCalledWith('DELETE FROM purchase_tickets WHERE id = ?', [1])
+    })
+
+    test('deve deletar um purchase ticket com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const purchaseTicket = new PurchaseTicketModel({
+        id: 2
+      })
+
+      await purchaseTicket.delete({
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'DELETE FROM purchase_tickets WHERE id = ?',
+        [2]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
     })
 
     test('deve lançar erro ao tentar deletar purchase ticket inexistente', async () => {
