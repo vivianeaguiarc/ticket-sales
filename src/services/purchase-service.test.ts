@@ -179,9 +179,12 @@ describe('PurchaseService', () => {
 
       expect(findCustomerByIdMock).toHaveBeenCalledWith(1, { user: true })
 
-      expect(findTicketsMock).toHaveBeenCalledWith({
-        where: { ids: [10, 11] }
-      })
+      expect(findTicketsMock).toHaveBeenCalledWith(
+        {
+          where: { ids: [10, 11] }
+        },
+        { connection }
+      )
 
       expect(createPurchaseMock).toHaveBeenCalledWith(
         {
@@ -300,9 +303,18 @@ describe('PurchaseService', () => {
         })
       ).rejects.toThrow('Some tickets not found')
 
+      expect(findTicketsMock).toHaveBeenCalledWith(
+        {
+          where: { ids: [10, 11] }
+        },
+        { connection }
+      )
       expect(createPurchaseMock).not.toHaveBeenCalled()
       expect(paymentService.processPayment).not.toHaveBeenCalled()
-      expect(getConnectionMock).not.toHaveBeenCalled()
+      expect(getConnectionMock).toHaveBeenCalledTimes(1)
+      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
+      expect(rollbackMock).toHaveBeenCalledTimes(1)
+      expect(releaseMock).toHaveBeenCalledTimes(1)
     })
 
     test('deve lançar erro se alguns tickets não estiverem disponíveis', async () => {
@@ -344,9 +356,18 @@ describe('PurchaseService', () => {
         })
       ).rejects.toThrow('Some tickets are not available')
 
+      expect(findTicketsMock).toHaveBeenCalledWith(
+        {
+          where: { ids: [10, 11] }
+        },
+        { connection }
+      )
       expect(createPurchaseMock).not.toHaveBeenCalled()
       expect(paymentService.processPayment).not.toHaveBeenCalled()
-      expect(getConnectionMock).not.toHaveBeenCalled()
+      expect(getConnectionMock).toHaveBeenCalledTimes(1)
+      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
+      expect(rollbackMock).toHaveBeenCalledTimes(1)
+      expect(releaseMock).toHaveBeenCalledTimes(1)
     })
 
     test('deve fazer rollback e marcar purchase como error se payment falhar', async () => {
@@ -400,6 +421,12 @@ describe('PurchaseService', () => {
         })
       ).rejects.toThrow('Payment failed')
 
+      expect(findTicketsMock).toHaveBeenCalledWith(
+        {
+          where: { ids: [10, 11] }
+        },
+        { connection }
+      )
       expect(createReservationMock).toHaveBeenCalledTimes(2)
       expect(tickets[0].update).toHaveBeenCalledTimes(1)
       expect(tickets[1].update).toHaveBeenCalledTimes(1)
