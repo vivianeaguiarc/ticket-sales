@@ -2,6 +2,9 @@ import { Router } from 'express'
 
 import { PartnerService } from '../services/partner-service.js'
 import { TicketService } from '../services/ticket-service.js'
+import { CancelPurchaseUseCase } from '../use-cases/cancel-purchase-use-case.js'
+import { PurchaseTicketUseCase } from '../use-cases/purchase-ticket-use-case.js'
+import { ReserveTicketUseCase } from '../use-cases/reserve-ticket-use-case.js'
 
 export const ticketRoutes = Router()
 
@@ -18,11 +21,13 @@ ticketRoutes.post('/:eventId/tickets', async (req, res) => {
   const { num_tickets, price } = req.body
   const { eventId } = req.params
   const ticketService = new TicketService()
+
   await ticketService.createMany({
     eventId: +eventId,
     numTickets: num_tickets,
     price
   })
+
   res.status(204).send()
 })
 
@@ -30,6 +35,7 @@ ticketRoutes.get('/:eventId/tickets', async (req, res) => {
   const { eventId } = req.params
   const ticketService = new TicketService()
   const data = await ticketService.findByEventId(+eventId)
+
   res.json(data)
 })
 
@@ -44,4 +50,94 @@ ticketRoutes.get('/:eventId/tickets/:ticketId', async (req, res) => {
   }
 
   res.json(ticket)
+})
+
+ticketRoutes.post('/reservations', async (req, res) => {
+  try {
+    const userId = req.user!.id
+    const { ticket_ids } = req.body
+
+    const result = await ReserveTicketUseCase.execute({
+      customer_id: userId,
+      ticket_ids
+    })
+
+    res.status(201).json(result)
+  } catch (error) {
+    if (error instanceof Error) {
+      if (
+        error.message === 'Customer id is required' ||
+        error.message === 'At least one ticket id is required'
+      ) {
+        res.status(400).json({ message: error.message })
+        return
+      }
+
+      if (error.message === 'Ticket is no longer available') {
+        res.status(409).json({ message: error.message })
+        return
+      }
+    }
+
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+ticketRoutes.post('/purchases', async (req, res) => {
+  try {
+    const { purchase_id, ticket_ids } = req.body
+
+    const result = await PurchaseTicketUseCase.execute({
+      purchase_id,
+      ticket_ids
+    })
+
+    res.status(201).json(result)
+  } catch (error) {
+    if (error instanceof Error) {
+      if (
+        error.message === 'Purchase id is required' ||
+        error.message === 'At least one ticket id is required'
+      ) {
+        res.status(400).json({ message: error.message })
+        return
+      }
+
+      if (
+        error.message === 'Ticket is no longer available' ||
+        error.message === 'Ticket is not reserved'
+      ) {
+        res.status(409).json({ message: error.message })
+        return
+      }
+    }
+
+    res.status(500).json({ message: 'Internal server error' })
+  }
+})
+
+ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
+  try {
+    const { purchaseId } = req.params
+
+    await CancelPurchaseUseCase.execute({
+      purchase_id: +purchaseId
+    })
+
+    res.status(204).send()
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Purchase id is required') {
+        res.status(400).json({ message: error.message })
+        return
+      }
+
+      if (error.message === 'Purchase tickets not found') {
+        res.status(404).json({ message: error.message })
+        return
+      }
+    }
+
+    res.status(500).json({ message: 'Internal server error' })
+  }
 })
