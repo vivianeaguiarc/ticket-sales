@@ -105,7 +105,7 @@ export class TicketModel {
         params.push(filter.where.event_id)
       }
 
-      if (filter.where.ids) {
+      if (filter.where.ids && filter.where.ids.length > 0) {
         where.push(`id IN (${filter.where.ids.map(() => '?').join(', ')})`)
         params.push(...filter.where.ids)
       }
@@ -115,11 +115,58 @@ export class TicketModel {
         params.push(filter.where.status)
       }
 
-      query += ` WHERE ${where.join(' AND ')}`
+      if (where.length > 0) {
+        query += ` WHERE ${where.join(' AND ')}`
+      }
     }
 
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
     return rows.map((row) => new TicketModel(row as TicketModel))
+  }
+
+  static async reserveIfAvailable(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+      [TicketStatus.reserved, id, TicketStatus.available]
+    )
+
+    if (result.affectedRows === 0) {
+      throw new Error('Ticket is no longer available')
+    }
+  }
+
+  static async markAsSold(id: number, options?: { connection?: PoolConnection }): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+      [TicketStatus.sold, id, TicketStatus.reserved]
+    )
+
+    if (result.affectedRows === 0) {
+      throw new Error('Ticket is not reserved')
+    }
+  }
+
+  static async markAsAvailable(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ?',
+      [TicketStatus.available, id]
+    )
+
+    if (result.affectedRows === 0) {
+      throw new Error('Ticket not found')
+    }
   }
 
   async update(options?: { connection?: PoolConnection }): Promise<void> {
