@@ -29,7 +29,7 @@ describe('TicketModel', () => {
   })
 
   describe('create', () => {
-    test('deve criar um ticket com sucesso', async () => {
+    test('deve criar um ticket com sucesso usando Database.getInstance()', async () => {
       const createdAt = new Date('2026-03-29T12:00:00.000Z')
       vi.useFakeTimers()
       vi.setSystemTime(createdAt)
@@ -58,10 +58,48 @@ describe('TicketModel', () => {
 
       vi.useRealTimers()
     })
+
+    test('deve criar um ticket com sucesso usando connection nas options', async () => {
+      const createdAt = new Date('2026-03-29T12:30:00.000Z')
+      vi.useFakeTimers()
+      vi.setSystemTime(createdAt)
+
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ insertId: 2 }])
+
+      const result = await TicketModel.create(
+        {
+          location: 'Location B',
+          event_id: 20,
+          price: 150,
+          status: TicketStatus.reserved
+        },
+        {
+          connection: connection as unknown as PoolConnection
+        }
+      )
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'INSERT INTO tickets (location, event_id, price, status, created_at) VALUES (?, ?, ?, ?, ?)',
+        ['Location B', 20, 150, TicketStatus.reserved, createdAt]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
+      expect(result).toBeInstanceOf(TicketModel)
+      expect(result.id).toBe(2)
+      expect(result.status).toBe(TicketStatus.reserved)
+      expect(result.created_at).toEqual(createdAt)
+
+      vi.useRealTimers()
+    })
   })
 
   describe('createMany', () => {
-    test('deve criar vários tickets com sucesso', async () => {
+    test('deve criar vários tickets com sucesso usando Database.getInstance()', async () => {
       const createdAt = new Date('2026-03-29T13:00:00.000Z')
       vi.useFakeTimers()
       vi.setSystemTime(createdAt)
@@ -79,13 +117,13 @@ describe('TicketModel', () => {
           location: 'Location 1',
           event_id: 1,
           price: 100,
-          status: TicketStatus.available
+          status: TicketStatus.reserved
         },
         {
           location: 'Location 2',
           event_id: 1,
           price: 100,
-          status: TicketStatus.available
+          status: TicketStatus.sold
         }
       ]
 
@@ -102,12 +140,12 @@ describe('TicketModel', () => {
           'Location 1',
           1,
           100,
-          TicketStatus.available,
+          TicketStatus.reserved,
           createdAt,
           'Location 2',
           1,
           100,
-          TicketStatus.available,
+          TicketStatus.sold,
           createdAt
         ]
       )
@@ -124,6 +162,61 @@ describe('TicketModel', () => {
       expect(result[0].created_at).toEqual(createdAt)
       expect(result[1].created_at).toEqual(createdAt)
       expect(result[2].created_at).toEqual(createdAt)
+
+      vi.useRealTimers()
+    })
+
+    test('deve criar vários tickets com sucesso usando connection nas options', async () => {
+      const createdAt = new Date('2026-03-29T13:30:00.000Z')
+      vi.useFakeTimers()
+      vi.setSystemTime(createdAt)
+
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      const input = [
+        {
+          location: 'Sector A1',
+          event_id: 2,
+          price: 200,
+          status: TicketStatus.available
+        },
+        {
+          location: 'Sector A2',
+          event_id: 2,
+          price: 200,
+          status: TicketStatus.available
+        }
+      ]
+
+      connectionExecuteMock.mockResolvedValue([{ insertId: 10 }])
+
+      const result = await TicketModel.createMany(input, {
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'INSERT INTO tickets (location, event_id, price, status, created_at) VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)',
+        [
+          'Sector A1',
+          2,
+          200,
+          TicketStatus.available,
+          createdAt,
+          'Sector A2',
+          2,
+          200,
+          TicketStatus.available,
+          createdAt
+        ]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
+      expect(result).toHaveLength(2)
+      expect(result[0].id).toBe(10)
+      expect(result[1].id).toBe(11)
 
       vi.useRealTimers()
     })
@@ -244,6 +337,31 @@ describe('TicketModel', () => {
       expect(result).toHaveLength(2)
     })
 
+    test('deve retornar tickets filtrando por status', async () => {
+      const rows = [
+        {
+          id: 3,
+          location: 'Location C',
+          event_id: 30,
+          price: 200,
+          status: TicketStatus.reserved,
+          created_at: new Date('2026-03-29T14:00:00.000Z')
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await TicketModel.findAll({
+        where: { status: TicketStatus.reserved }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM tickets WHERE status = ?', [
+        TicketStatus.reserved
+      ])
+      expect(result).toHaveLength(1)
+      expect(result[0].status).toBe(TicketStatus.reserved)
+    })
+
     test('deve retornar tickets filtrando por event_id e ids', async () => {
       const rows = [
         {
@@ -269,6 +387,32 @@ describe('TicketModel', () => {
       expect(result).toHaveLength(1)
     })
 
+    test('deve retornar tickets filtrando por event_id, ids e status', async () => {
+      const rows = [
+        {
+          id: 2,
+          location: 'Location B',
+          event_id: 10,
+          price: 180,
+          status: TicketStatus.available,
+          created_at: new Date('2026-03-29T15:00:00.000Z')
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await TicketModel.findAll({
+        where: { event_id: 10, ids: [2, 3], status: TicketStatus.available }
+      })
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM tickets WHERE event_id = ? AND id IN (?, ?) AND status = ?',
+        [10, 2, 3, TicketStatus.available]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0].status).toBe(TicketStatus.available)
+    })
+
     test('deve usar connection nas options quando fornecida', async () => {
       const connectionExecuteMock = vi.fn()
       connectionExecuteMock.mockResolvedValue([[]])
@@ -287,7 +431,7 @@ describe('TicketModel', () => {
   })
 
   describe('update', () => {
-    test('deve atualizar ticket com sucesso', async () => {
+    test('deve atualizar ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const ticket = new TicketModel({
@@ -306,6 +450,34 @@ describe('TicketModel', () => {
       )
     })
 
+    test('deve atualizar ticket com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const ticket = new TicketModel({
+        id: 2,
+        location: 'Location Reservada',
+        event_id: 15,
+        price: 250,
+        status: TicketStatus.reserved
+      })
+
+      await ticket.update({
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'UPDATE tickets SET location = ?, event_id = ?, price = ?, status = ? WHERE id = ?',
+        ['Location Reservada', 15, 250, TicketStatus.reserved, 2]
+      )
+
+      expect(executeMock).not.toHaveBeenCalled()
+    })
+
     test('deve lançar erro ao tentar atualizar ticket inexistente', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 0 }])
 
@@ -322,7 +494,7 @@ describe('TicketModel', () => {
   })
 
   describe('delete', () => {
-    test('deve deletar ticket com sucesso', async () => {
+    test('deve deletar ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
       const ticket = new TicketModel({
@@ -332,6 +504,26 @@ describe('TicketModel', () => {
       await ticket.delete()
 
       expect(executeMock).toHaveBeenCalledWith('DELETE FROM tickets WHERE id = ?', [1])
+    })
+
+    test('deve deletar ticket com sucesso usando connection nas options', async () => {
+      const connectionExecuteMock = vi.fn()
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      connectionExecuteMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const ticket = new TicketModel({
+        id: 2
+      })
+
+      await ticket.delete({
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith('DELETE FROM tickets WHERE id = ?', [2])
+      expect(executeMock).not.toHaveBeenCalled()
     })
 
     test('deve lançar erro ao tentar deletar ticket inexistente', async () => {
