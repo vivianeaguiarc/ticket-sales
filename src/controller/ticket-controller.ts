@@ -85,10 +85,11 @@ ticketRoutes.post('/reservations', async (req, res) => {
 
 ticketRoutes.post('/purchases', async (req, res) => {
   try {
-    const { purchase_id, ticket_ids } = req.body
+    const userId = req.user!.id
+    const { ticket_ids } = req.body
 
     const result = await PurchaseTicketUseCase.execute({
-      purchase_id,
+      customer_id: userId,
       ticket_ids
     })
 
@@ -96,7 +97,7 @@ ticketRoutes.post('/purchases', async (req, res) => {
   } catch (error) {
     if (error instanceof Error) {
       if (
-        error.message === 'Purchase id is required' ||
+        error.message === 'Customer id is required' ||
         error.message === 'At least one ticket id is required'
       ) {
         res.status(400).json({ message: error.message })
@@ -110,12 +111,16 @@ ticketRoutes.post('/purchases', async (req, res) => {
         res.status(409).json({ message: error.message })
         return
       }
+
+      if (error.message === 'One or more tickets not found') {
+        res.status(404).json({ message: error.message })
+        return
+      }
     }
 
     res.status(500).json({ message: 'Internal server error' })
   }
 })
-
 ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
   try {
     const { purchaseId } = req.params
