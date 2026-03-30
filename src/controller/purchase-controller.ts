@@ -16,9 +16,9 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
   }
 
   const { ticket_ids, card_token } = req.body
-  //design pattern - factory | container de serviços
   const paymentService = new PaymentService()
   const purchaseService = new PurchaseService(paymentService)
+
   const newPurchaseId = await purchaseService.create({
     customerId: customer.id,
     ticketIds: ticket_ids,
@@ -28,4 +28,12 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
   const purchase = await purchaseService.findById(newPurchaseId)
 
   res.status(201).json(purchase)
+})
+
+purchaseRoutes.post('/:id/cancel', async (req: Request, res: Response) => {
+  const purchaseService = new PurchaseService(new PaymentService())
+
+  await purchaseService.cancel(Number(req.params.id))
+
+  res.status(200).json({ message: 'Purchase cancelled successfully' })
 })
