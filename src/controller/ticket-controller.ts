@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { CustomerService } from '../services/customer-service.js'
 import { PartnerService } from '../services/partner-service.js'
 import { TicketService } from '../services/ticket-service.js'
 import { CancelPurchaseUseCase } from '../use-cases/cancel-purchase-use-case.js'
@@ -57,8 +58,16 @@ ticketRoutes.post('/reservations', async (req, res) => {
     const userId = req.user!.id
     const { ticket_ids } = req.body
 
+    const customerService = new CustomerService()
+    const customer = await customerService.findByUserId(userId)
+
+    if (!customer) {
+      res.status(403).json({ message: 'Not authorized' })
+      return
+    }
+
     const result = await ReserveTicketUseCase.execute({
-      customer_id: userId,
+      customer_id: customer.id,
       ticket_ids
     })
 
@@ -88,8 +97,16 @@ ticketRoutes.post('/purchases', async (req, res) => {
     const userId = req.user!.id
     const { ticket_ids } = req.body
 
+    const customerService = new CustomerService()
+    const customer = await customerService.findByUserId(userId)
+
+    if (!customer) {
+      res.status(403).json({ message: 'Not authorized' })
+      return
+    }
+
     const result = await PurchaseTicketUseCase.execute({
-      customer_id: userId,
+      customer_id: customer.id,
       ticket_ids
     })
 
@@ -121,6 +138,7 @@ ticketRoutes.post('/purchases', async (req, res) => {
     res.status(500).json({ message: 'Internal server error' })
   }
 })
+
 ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
   try {
     const { purchaseId } = req.params

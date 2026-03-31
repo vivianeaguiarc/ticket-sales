@@ -3,7 +3,8 @@ import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const {
-  findByUserIdMock,
+  findPartnerByUserIdMock,
+  findCustomerByUserIdMock,
   createManyMock,
   findByEventIdMock,
   findByIdMock,
@@ -12,7 +13,8 @@ const {
   cancelPurchaseExecuteMock
 } = vi.hoisted(() => {
   return {
-    findByUserIdMock: vi.fn(),
+    findPartnerByUserIdMock: vi.fn(),
+    findCustomerByUserIdMock: vi.fn(),
     createManyMock: vi.fn(),
     findByEventIdMock: vi.fn(),
     findByIdMock: vi.fn(),
@@ -25,7 +27,15 @@ const {
 vi.mock('../services/partner-service.js', () => {
   return {
     PartnerService: class {
-      findByUserId = findByUserIdMock
+      findByUserId = findPartnerByUserIdMock
+    }
+  }
+})
+
+vi.mock('../services/customer-service.js', () => {
+  return {
+    CustomerService: class {
+      findByUserId = findCustomerByUserIdMock
     }
   }
 })
@@ -72,7 +82,7 @@ describe('TicketController', () => {
   app.use(express.json())
 
   app.use((req, _res, next) => {
-    req.user = { id: 1, email: 'partner@email.com' }
+    req.user = { id: 1, email: 'user@email.com' }
     next()
   })
 
@@ -89,7 +99,7 @@ describe('TicketController', () => {
       company_name: 'Minha Empresa'
     }
 
-    findByUserIdMock.mockResolvedValue(mockPartner)
+    findPartnerByUserIdMock.mockResolvedValue(mockPartner)
     createManyMock.mockResolvedValue(undefined)
 
     const response = await request(app).post('/partners/events/1/tickets').send({
@@ -100,7 +110,7 @@ describe('TicketController', () => {
     expect(response.status).toBe(204)
     expect(response.text).toBe('')
 
-    expect(findByUserIdMock).toHaveBeenCalledWith(1)
+    expect(findPartnerByUserIdMock).toHaveBeenCalledWith(1)
     expect(createManyMock).toHaveBeenCalledWith({
       eventId: 1,
       numTickets: 10,
@@ -109,7 +119,7 @@ describe('TicketController', () => {
   })
 
   test('deve retornar 403 se o usuário não for partner', async () => {
-    findByUserIdMock.mockResolvedValue(null)
+    findPartnerByUserIdMock.mockResolvedValue(null)
 
     const response = await request(app).post('/partners/events/1/tickets').send({
       num_tickets: 10,
@@ -121,7 +131,7 @@ describe('TicketController', () => {
       message: 'Not authorized'
     })
 
-    expect(findByUserIdMock).toHaveBeenCalledWith(1)
+    expect(findPartnerByUserIdMock).toHaveBeenCalledWith(1)
     expect(createManyMock).not.toHaveBeenCalled()
   })
 
@@ -166,11 +176,17 @@ describe('TicketController', () => {
   })
 
   test('deve reservar tickets com sucesso', async () => {
+    const customer = {
+      id: 10,
+      user_id: 1
+    }
+
     const reservations = [
-      { id: 1, customer_id: 1, ticket_id: 101, status: 'reserved' },
-      { id: 2, customer_id: 1, ticket_id: 102, status: 'reserved' }
+      { id: 1, customer_id: 10, ticket_id: 101, status: 'reserved' },
+      { id: 2, customer_id: 10, ticket_id: 102, status: 'reserved' }
     ]
 
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     reserveTicketExecuteMock.mockResolvedValue(reservations)
 
     const response = await request(app)
@@ -181,13 +197,35 @@ describe('TicketController', () => {
 
     expect(response.status).toBe(201)
     expect(response.body).toEqual(reservations)
+    expect(findCustomerByUserIdMock).toHaveBeenCalledWith(1)
     expect(reserveTicketExecuteMock).toHaveBeenCalledWith({
-      customer_id: 1,
+      customer_id: 10,
       ticket_ids: [101, 102]
     })
   })
 
+  test('deve retornar 403 ao reservar se usuário não for customer', async () => {
+    findCustomerByUserIdMock.mockResolvedValue(null)
+
+    const response = await request(app)
+      .post('/partners/events/reservations')
+      .send({
+        ticket_ids: [101]
+      })
+
+    expect(response.status).toBe(403)
+    expect(response.body).toEqual({
+      message: 'Not authorized'
+    })
+  })
+
   test('deve retornar 400 ao reservar tickets com dados inválidos', async () => {
+    const customer = {
+      id: 10,
+      user_id: 1
+    }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     reserveTicketExecuteMock.mockRejectedValue(new Error('At least one ticket id is required'))
 
     const response = await request(app).post('/partners/events/reservations').send({
@@ -201,6 +239,12 @@ describe('TicketController', () => {
   })
 
   test('deve retornar 409 ao reservar ticket indisponível', async () => {
+    const customer = {
+      id: 10,
+      user_id: 1
+    }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     reserveTicketExecuteMock.mockRejectedValue(new Error('Ticket is no longer available'))
 
     const response = await request(app)
@@ -216,13 +260,19 @@ describe('TicketController', () => {
   })
 
   test('deve comprar tickets com sucesso', async () => {
-    const purchase = {
+    const customer = {
       id: 10,
-      customer_id: 1,
+      user_id: 1
+    }
+
+    const purchase = {
+      id: 1,
+      customer_id: 10,
       total_amount: 350,
       status: 'paid'
     }
 
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     purchaseTicketExecuteMock.mockResolvedValue(purchase)
 
     const response = await request(app)
@@ -233,13 +283,35 @@ describe('TicketController', () => {
 
     expect(response.status).toBe(201)
     expect(response.body).toEqual(purchase)
+    expect(findCustomerByUserIdMock).toHaveBeenCalledWith(1)
     expect(purchaseTicketExecuteMock).toHaveBeenCalledWith({
-      customer_id: 1,
+      customer_id: 10,
       ticket_ids: [101, 102]
     })
   })
 
+  test('deve retornar 403 ao comprar se usuário não for customer', async () => {
+    findCustomerByUserIdMock.mockResolvedValue(null)
+
+    const response = await request(app)
+      .post('/partners/events/purchases')
+      .send({
+        ticket_ids: [101]
+      })
+
+    expect(response.status).toBe(403)
+    expect(response.body).toEqual({
+      message: 'Not authorized'
+    })
+  })
+
   test('deve retornar 400 ao comprar tickets com dados inválidos', async () => {
+    const customer = {
+      id: 10,
+      user_id: 1
+    }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     purchaseTicketExecuteMock.mockRejectedValue(new Error('At least one ticket id is required'))
 
     const response = await request(app).post('/partners/events/purchases').send({
@@ -253,6 +325,12 @@ describe('TicketController', () => {
   })
 
   test('deve retornar 409 ao comprar ticket indisponível', async () => {
+    const customer = {
+      id: 10,
+      user_id: 1
+    }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
     purchaseTicketExecuteMock.mockRejectedValue(new Error('Ticket is no longer available'))
 
     const response = await request(app)

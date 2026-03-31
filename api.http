@@ -1,3 +1,7 @@
+### =========================================================
+### AUTH / REGISTER
+### =========================================================
+
 ###
 # @name registerPartner1
 POST http://localhost:3000/partners/register
@@ -29,7 +33,7 @@ POST http://localhost:3000/customers/register
 Content-Type: application/json
 
 {
-  "name": "Test Customer 2",
+  "name": "Test Customer 1",
   "email": "testcustomer2@example.com",
   "password": "testpassword",
   "address": "123 Test St",
@@ -49,10 +53,15 @@ Content-Type: application/json
 ###
 @tokenCustomer1 = {{loginCustomer1.response.body.token}}
 
+### =========================================================
+### EVENTS
+### =========================================================
+
 ### Listagem pública de todos os eventos
 GET http://localhost:3000/events
 
-### Criação do evento pelo parceiro
+###
+# @name createEvent1
 POST http://localhost:3000/partners/events
 Content-Type: application/json
 Authorization: Bearer {{tokenPartner1}}
@@ -63,20 +72,116 @@ Authorization: Bearer {{tokenPartner1}}
   "date": "2027-07-01T10:00:00Z",
   "location": "Test Venue"
 }
-### Listagem dos eventos criados pelo parceiro
+
+### Listagem dos eventos do parceiro
 GET http://localhost:3000/partners/events
 Authorization: Bearer {{tokenPartner1}}
 
-### Listagem dos detalhes do evento criado pelo parceiro
+### Detalhes do evento
 GET http://localhost:3000/partners/events/1
 Authorization: Bearer {{tokenPartner1}}
 
-### Criação de tickets para o evento criado pelo parceiro
+### =========================================================
+### TICKETS
+### =========================================================
+
+### Criar tickets para o evento
 POST http://localhost:3000/partners/events/1/tickets
 Content-Type: application/json
 Authorization: Bearer {{tokenPartner1}}
 
 {
-  "numTickets": 100,
-  "price": 50.00
+  "num_tickets": 5,
+  "price": 50
 }
+
+### Listar tickets do evento
+GET http://localhost:3000/partners/events/1/tickets
+Authorization: Bearer {{tokenPartner1}}
+
+### Buscar um ticket específico
+GET http://localhost:3000/partners/events/1/tickets/1
+Authorization: Bearer {{tokenPartner1}}
+
+### =========================================================
+### RESERVATIONS
+### =========================================================
+
+### Reservar tickets como cliente
+# fluxo atual usa req.user.id como customer_id
+# espera-se sucesso
+POST http://localhost:3000/partners/events/reservations
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": [1, 2]
+}
+
+### Teste de erro de validação na reserva
+POST http://localhost:3000/partners/events/reservations
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": []
+}
+
+### Teste de conflito: reservar ticket já reservado ou indisponível
+POST http://localhost:3000/partners/events/reservations
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": [1]
+}
+
+### =========================================================
+### PURCHASES
+### =========================================================
+
+### Comprar tickets como cliente
+# fluxo atual cria a purchase internamente
+# use tickets ainda não reservados/comprados
+# @name createPurchase1
+POST http://localhost:3000/partners/events/purchases
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": [3, 4]
+}
+
+### Se sua rota retornar o id da purchase no body:
+### @purchaseId1 = {{createPurchase1.response.body.id}}
+
+### Teste de erro de validação na compra
+POST http://localhost:3000/partners/events/purchases
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": []
+}
+
+### Teste de conflito: comprar ticket indisponível
+POST http://localhost:3000/partners/events/purchases
+Content-Type: application/json
+Authorization: Bearer {{tokenCustomer1}}
+
+{
+  "ticket_ids": [1]
+}
+
+### =========================================================
+### CANCEL PURCHASE
+### =========================================================
+
+### Cancelar compra
+### Se o endpoint de compra retornar o id da purchase, troque o 1 por {{purchaseId1}}
+DELETE http://localhost:3000/partners/events/purchases/1
+Authorization: Bearer {{tokenCustomer1}}
+
+### Teste: cancelar compra inexistente
+DELETE http://localhost:3000/partners/events/purchases/999
+Authorization: Bearer {{tokenCustomer1}}
