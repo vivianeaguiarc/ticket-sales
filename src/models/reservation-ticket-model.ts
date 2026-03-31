@@ -12,6 +12,7 @@ export class ReservationTicketModel {
   customer_id: number
   ticket_id: number
   reservation_date: Date
+  expires_at: Date
   status: ReservationStatus
 
   constructor(data: Partial<ReservationTicketModel> = {}) {
@@ -23,20 +24,23 @@ export class ReservationTicketModel {
       customer_id: number
       ticket_id: number
       status: ReservationStatus
+      expires_at?: Date
     },
     options?: { connection?: PoolConnection }
   ): Promise<ReservationTicketModel> {
     const db = options?.connection ?? Database.getInstance()
     const reservation_date = new Date()
+    const expires_at = data.expires_at ?? new Date(Date.now() + 5 * 60 * 1000)
 
     const [result] = await db.execute<ResultSetHeader>(
-      'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date) VALUES (?, ?, ?, ?)',
-      [data.customer_id, data.ticket_id, data.status, reservation_date]
+      'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [data.customer_id, data.ticket_id, data.status, reservation_date, expires_at]
     )
 
     const reservation = new ReservationTicketModel({
       ...data,
       reservation_date,
+      expires_at,
       id: result.insertId
     })
 
@@ -61,6 +65,7 @@ export class ReservationTicketModel {
         ticket_id?: number[]
         status?: ReservationStatus
         reserved_before?: Date
+        expires_before?: Date
       }
     },
     options?: { connection?: PoolConnection }
@@ -93,6 +98,11 @@ export class ReservationTicketModel {
         params.push(filter.where.reserved_before)
       }
 
+      if (filter.where.expires_before !== undefined) {
+        where.push('expires_at < ?')
+        params.push(filter.where.expires_before)
+      }
+
       if (where.length > 0) {
         query += ` WHERE ${where.join(' AND ')}`
       }
@@ -107,8 +117,8 @@ export class ReservationTicketModel {
     const db = options?.connection ?? Database.getInstance()
 
     const [result] = await db.execute<ResultSetHeader>(
-      'UPDATE reservation_tickets SET customer_id = ?, ticket_id = ?, status = ? WHERE id = ?',
-      [this.customer_id, this.ticket_id, this.status, this.id]
+      'UPDATE reservation_tickets SET customer_id = ?, ticket_id = ?, status = ?, expires_at = ? WHERE id = ?',
+      [this.customer_id, this.ticket_id, this.status, this.expires_at, this.id]
     )
 
     if (result.affectedRows === 0) {
@@ -134,6 +144,7 @@ export class ReservationTicketModel {
     if (data.customer_id !== undefined) this.customer_id = data.customer_id
     if (data.ticket_id !== undefined) this.ticket_id = data.ticket_id
     if (data.reservation_date !== undefined) this.reservation_date = data.reservation_date
+    if (data.expires_at !== undefined) this.expires_at = data.expires_at
     if (data.status !== undefined) this.status = data.status
   }
 }
