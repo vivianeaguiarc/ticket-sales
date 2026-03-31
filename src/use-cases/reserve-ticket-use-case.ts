@@ -1,6 +1,7 @@
 import { Database } from '../database.js'
-import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
-import { TicketModel } from '../models/ticket-model.js'
+import { ReservationTicketModel } from '../models/reservation-ticket-model.js'
+import { TicketModel, TicketStatus } from '../models/ticket-model.js'
+import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
 
 interface Input {
   customer_id: number
@@ -25,23 +26,34 @@ export class ReserveTicketUseCase {
     try {
       await connection.beginTransaction()
 
+      for (const ticketId of ticket_ids) {
+        await TicketModel.reserveIfAvailable(ticketId, { connection })
+      }
+
       const reservations: ReservationTicketModel[] = []
 
       for (const ticketId of ticket_ids) {
-        await TicketModel.reserveIfAvailable(ticketId, { connection })
-
         const reservation = await ReservationTicketModel.create(
           {
             customer_id,
             ticket_id: ticketId,
-            status: ReservationStatus.reserved
+            status: TicketStatus.reserved
           },
-          {
-            connection
-          }
+          { connection }
         )
 
         reservations.push(reservation)
+      }
+
+      for (const ticketId of ticket_ids) {
+        await TicketStatusHistoryModel.create(
+          {
+            ticket_id: ticketId,
+            from_status: TicketStatus.available,
+            to_status: TicketStatus.reserved
+          },
+          { connection }
+        )
       }
 
       await connection.commit()

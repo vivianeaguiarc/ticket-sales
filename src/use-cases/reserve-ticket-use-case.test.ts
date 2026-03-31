@@ -8,7 +8,8 @@ const {
   rollbackMock,
   releaseMock,
   reserveIfAvailableMock,
-  createMock
+  createMock,
+  createHistoryMock
 } = vi.hoisted(() => {
   return {
     getInstanceMock: vi.fn(),
@@ -18,7 +19,8 @@ const {
     rollbackMock: vi.fn(),
     releaseMock: vi.fn(),
     reserveIfAvailableMock: vi.fn(),
-    createMock: vi.fn()
+    createMock: vi.fn(),
+    createHistoryMock: vi.fn()
   }
 })
 
@@ -32,6 +34,11 @@ vi.mock('../database.js', () => {
 
 vi.mock('../models/ticket-model.js', () => {
   return {
+    TicketStatus: {
+      available: 'available',
+      reserved: 'reserved',
+      sold: 'sold'
+    },
     TicketModel: {
       reserveIfAvailable: reserveIfAvailableMock
     }
@@ -40,12 +47,16 @@ vi.mock('../models/ticket-model.js', () => {
 
 vi.mock('../models/reservation-ticket-model.js', () => {
   return {
-    ReservationStatus: {
-      reserved: 'reserved',
-      cancelled: 'cancelled'
-    },
     ReservationTicketModel: {
       create: createMock
+    }
+  }
+})
+
+vi.mock('../models/ticket-status-history-model.js', () => {
+  return {
+    TicketStatusHistoryModel: {
+      create: createHistoryMock
     }
   }
 })
@@ -60,7 +71,9 @@ describe('ReserveTicketUseCase', () => {
     commitMock.mockResolvedValue(undefined)
     rollbackMock.mockResolvedValue(undefined)
     releaseMock.mockResolvedValue(undefined)
+
     reserveIfAvailableMock.mockResolvedValue(undefined)
+    createHistoryMock.mockResolvedValue(undefined)
 
     getConnectionMock.mockResolvedValue({
       beginTransaction: beginTransactionMock,
@@ -128,6 +141,30 @@ describe('ReserveTicketUseCase', () => {
       }
     )
 
+    expect(createHistoryMock).toHaveBeenCalledTimes(2)
+    expect(createHistoryMock).toHaveBeenNthCalledWith(
+      1,
+      {
+        ticket_id: 101,
+        from_status: 'available',
+        to_status: 'reserved'
+      },
+      {
+        connection: expect.any(Object)
+      }
+    )
+    expect(createHistoryMock).toHaveBeenNthCalledWith(
+      2,
+      {
+        ticket_id: 102,
+        from_status: 'available',
+        to_status: 'reserved'
+      },
+      {
+        connection: expect.any(Object)
+      }
+    )
+
     expect(commitMock).toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalled()
     expect(result).toHaveLength(2)
@@ -168,6 +205,28 @@ describe('ReserveTicketUseCase', () => {
 
   test('deve fazer rollback se create lançar erro', async () => {
     createMock.mockRejectedValue(new Error('Database error'))
+
+    await expect(
+      ReserveTicketUseCase.execute({
+        customer_id: 10,
+        ticket_ids: [101]
+      })
+    ).rejects.toThrow('Database error')
+
+    expect(beginTransactionMock).toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
+  })
+
+  test('deve fazer rollback se create do histórico lançar erro', async () => {
+    createMock.mockResolvedValue({
+      id: 1,
+      customer_id: 10,
+      ticket_id: 101,
+      status: 'reserved'
+    })
+
+    createHistoryMock.mockRejectedValue(new Error('Database error'))
 
     await expect(
       ReserveTicketUseCase.execute({
