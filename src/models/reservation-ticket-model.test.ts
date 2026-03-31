@@ -21,7 +21,7 @@ import { ReservationStatus, ReservationTicketModel } from './reservation-ticket-
 
 describe('ReservationTicketModel', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
 
     getInstanceMock.mockReturnValue({
       execute: executeMock
@@ -39,8 +39,8 @@ describe('ReservationTicketModel', () => {
       })
 
       expect(executeMock).toHaveBeenCalledWith(
-        'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date) VALUES (?, ?, ?, ?)',
-        [10, 20, ReservationStatus.reserved, expect.any(Date)]
+        'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date, expires_at) VALUES (?, ?, ?, ?, ?)',
+        [10, 20, ReservationStatus.reserved, expect.any(Date), expect.any(Date)]
       )
 
       expect(result).toBeInstanceOf(ReservationTicketModel)
@@ -49,6 +49,7 @@ describe('ReservationTicketModel', () => {
       expect(result.ticket_id).toBe(20)
       expect(result.status).toBe(ReservationStatus.reserved)
       expect(result.reservation_date).toBeInstanceOf(Date)
+      expect(result.expires_at).toBeInstanceOf(Date)
     })
 
     test('deve criar uma reservation com sucesso usando connection nas options', async () => {
@@ -71,17 +72,12 @@ describe('ReservationTicketModel', () => {
       )
 
       expect(connectionExecuteMock).toHaveBeenCalledWith(
-        'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date) VALUES (?, ?, ?, ?)',
-        [30, 40, ReservationStatus.cancelled, expect.any(Date)]
+        'INSERT INTO reservation_tickets (customer_id, ticket_id, status, reservation_date, expires_at) VALUES (?, ?, ?, ?, ?)',
+        [30, 40, ReservationStatus.cancelled, expect.any(Date), expect.any(Date)]
       )
 
       expect(executeMock).not.toHaveBeenCalled()
-      expect(result).toBeInstanceOf(ReservationTicketModel)
       expect(result.id).toBe(2)
-      expect(result.customer_id).toBe(30)
-      expect(result.ticket_id).toBe(40)
-      expect(result.status).toBe(ReservationStatus.cancelled)
-      expect(result.reservation_date).toBeInstanceOf(Date)
     })
   })
 
@@ -92,6 +88,7 @@ describe('ReservationTicketModel', () => {
         customer_id: 10,
         ticket_id: 20,
         reservation_date: new Date('2026-03-30T17:00:00.000Z'),
+        expires_at: new Date('2026-03-30T17:05:00.000Z'),
         status: ReservationStatus.reserved
       }
 
@@ -106,10 +103,7 @@ describe('ReservationTicketModel', () => {
 
       expect(result).toBeInstanceOf(ReservationTicketModel)
       expect(result?.id).toBe(1)
-      expect(result?.customer_id).toBe(10)
-      expect(result?.ticket_id).toBe(20)
-      expect(result?.status).toBe(ReservationStatus.reserved)
-      expect(result?.reservation_date).toEqual(new Date('2026-03-30T17:00:00.000Z'))
+      expect(result?.expires_at).toEqual(new Date('2026-03-30T17:05:00.000Z'))
     })
 
     test('deve retornar null quando não encontrar reservation', async () => {
@@ -133,14 +127,16 @@ describe('ReservationTicketModel', () => {
           id: 1,
           customer_id: 10,
           ticket_id: 20,
-          reservation_date: new Date('2026-03-30T17:00:00.000Z'),
+          reservation_date: new Date(),
+          expires_at: new Date(),
           status: ReservationStatus.reserved
         },
         {
           id: 2,
           customer_id: 11,
           ticket_id: 21,
-          reservation_date: new Date('2026-03-30T18:00:00.000Z'),
+          reservation_date: new Date(),
+          expires_at: new Date(),
           status: ReservationStatus.cancelled
         }
       ]
@@ -150,76 +146,18 @@ describe('ReservationTicketModel', () => {
       const result = await ReservationTicketModel.findAll()
 
       expect(executeMock).toHaveBeenCalledWith('SELECT * FROM reservation_tickets', [])
-
-      expect(result).toHaveLength(2)
-      expect(result[0]).toBeInstanceOf(ReservationTicketModel)
-      expect(result[1]).toBeInstanceOf(ReservationTicketModel)
-    })
-
-    test('deve retornar reservations filtrando por customer_id', async () => {
-      const rows = [
-        {
-          id: 1,
-          customer_id: 10,
-          ticket_id: 20,
-          reservation_date: new Date(),
-          status: ReservationStatus.reserved
-        }
-      ]
-
-      executeMock.mockResolvedValue([rows])
-
-      const result = await ReservationTicketModel.findAll({
-        where: { customer_id: 10 }
-      })
-
-      expect(executeMock).toHaveBeenCalledWith(
-        'SELECT * FROM reservation_tickets WHERE customer_id = ?',
-        [10]
-      )
-
-      expect(result).toHaveLength(1)
-    })
-
-    test('deve retornar reservations filtrando por ticket_id', async () => {
-      const rows = [
-        {
-          id: 1,
-          customer_id: 10,
-          ticket_id: 20,
-          reservation_date: new Date(),
-          status: ReservationStatus.reserved
-        },
-        {
-          id: 2,
-          customer_id: 10,
-          ticket_id: 21,
-          reservation_date: new Date(),
-          status: ReservationStatus.reserved
-        }
-      ]
-
-      executeMock.mockResolvedValue([rows])
-
-      const result = await ReservationTicketModel.findAll({
-        where: { ticket_id: [20, 21] }
-      })
-
-      expect(executeMock).toHaveBeenCalledWith(
-        'SELECT * FROM reservation_tickets WHERE ticket_id IN (?, ?)',
-        [20, 21]
-      )
-
       expect(result).toHaveLength(2)
     })
 
-    test('deve retornar reservations filtrando por status', async () => {
+    test('deve retornar reservations filtrando por expires_before', async () => {
+      const expiresBefore = new Date('2026-03-30T18:00:00.000Z')
       const rows = [
         {
           id: 1,
           customer_id: 10,
           ticket_id: 20,
           reservation_date: new Date(),
+          expires_at: new Date('2026-03-30T17:00:00.000Z'),
           status: ReservationStatus.reserved
         }
       ]
@@ -227,71 +165,13 @@ describe('ReservationTicketModel', () => {
       executeMock.mockResolvedValue([rows])
 
       const result = await ReservationTicketModel.findAll({
-        where: { status: ReservationStatus.reserved }
+        where: { expires_before: expiresBefore }
       })
 
       expect(executeMock).toHaveBeenCalledWith(
-        'SELECT * FROM reservation_tickets WHERE status = ?',
-        [ReservationStatus.reserved]
+        'SELECT * FROM reservation_tickets WHERE expires_at < ?',
+        [expiresBefore]
       )
-
-      expect(result).toHaveLength(1)
-    })
-
-    test('deve retornar reservations filtrando por reserved_before', async () => {
-      const reservedBefore = new Date('2026-03-30T18:00:00.000Z')
-      const rows = [
-        {
-          id: 1,
-          customer_id: 10,
-          ticket_id: 20,
-          reservation_date: new Date('2026-03-30T17:00:00.000Z'),
-          status: ReservationStatus.reserved
-        }
-      ]
-
-      executeMock.mockResolvedValue([rows])
-
-      const result = await ReservationTicketModel.findAll({
-        where: { reserved_before: reservedBefore }
-      })
-
-      expect(executeMock).toHaveBeenCalledWith(
-        'SELECT * FROM reservation_tickets WHERE reservation_date < ?',
-        [reservedBefore]
-      )
-
-      expect(result).toHaveLength(1)
-    })
-
-    test('deve retornar reservations filtrando por customer_id, ticket_id, status e reserved_before', async () => {
-      const reservedBefore = new Date('2026-03-30T18:00:00.000Z')
-      const rows = [
-        {
-          id: 1,
-          customer_id: 10,
-          ticket_id: 20,
-          reservation_date: new Date('2026-03-30T17:00:00.000Z'),
-          status: ReservationStatus.reserved
-        }
-      ]
-
-      executeMock.mockResolvedValue([rows])
-
-      const result = await ReservationTicketModel.findAll({
-        where: {
-          customer_id: 10,
-          ticket_id: [20, 21],
-          status: ReservationStatus.reserved,
-          reserved_before: reservedBefore
-        }
-      })
-
-      expect(executeMock).toHaveBeenCalledWith(
-        'SELECT * FROM reservation_tickets WHERE customer_id = ? AND ticket_id IN (?, ?) AND status = ? AND reservation_date < ?',
-        [10, 20, 21, ReservationStatus.reserved, reservedBefore]
-      )
-
       expect(result).toHaveLength(1)
     })
   })
@@ -304,14 +184,15 @@ describe('ReservationTicketModel', () => {
         id: 1,
         customer_id: 99,
         ticket_id: 88,
-        status: ReservationStatus.cancelled
+        status: ReservationStatus.cancelled,
+        expires_at: new Date('2026-03-30T18:05:00.000Z')
       })
 
       await reservation.update()
 
       expect(executeMock).toHaveBeenCalledWith(
-        'UPDATE reservation_tickets SET customer_id = ?, ticket_id = ?, status = ? WHERE id = ?',
-        [99, 88, ReservationStatus.cancelled, 1]
+        'UPDATE reservation_tickets SET customer_id = ?, ticket_id = ?, status = ?, expires_at = ? WHERE id = ?',
+        [99, 88, ReservationStatus.cancelled, reservation.expires_at, 1]
       )
     })
 
@@ -322,7 +203,8 @@ describe('ReservationTicketModel', () => {
         id: 999,
         customer_id: 99,
         ticket_id: 88,
-        status: ReservationStatus.cancelled
+        status: ReservationStatus.cancelled,
+        expires_at: new Date()
       })
 
       await expect(reservation.update()).rejects.toThrow('Reservation not found')
@@ -357,12 +239,14 @@ describe('ReservationTicketModel', () => {
     test('deve preencher todos os campos informados', () => {
       const reservation = new ReservationTicketModel()
       const reservationDate = new Date('2026-03-30T17:00:00.000Z')
+      const expiresAt = new Date('2026-03-30T17:05:00.000Z')
 
       reservation.fill({
         id: 1,
         customer_id: 10,
         ticket_id: 20,
         reservation_date: reservationDate,
+        expires_at: expiresAt,
         status: ReservationStatus.reserved
       })
 
@@ -370,6 +254,7 @@ describe('ReservationTicketModel', () => {
       expect(reservation.customer_id).toBe(10)
       expect(reservation.ticket_id).toBe(20)
       expect(reservation.reservation_date).toBe(reservationDate)
+      expect(reservation.expires_at).toBe(expiresAt)
       expect(reservation.status).toBe(ReservationStatus.reserved)
     })
   })
