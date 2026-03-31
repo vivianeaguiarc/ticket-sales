@@ -1,5 +1,6 @@
 import { app } from './app.js'
 import { Database } from './database.js'
+import { startReleaseExpiredReservationsJob } from './jobs/release-expired-reservations-job.js'
 
 app.listen(3000, async () => {
   let dbConnection
@@ -18,6 +19,9 @@ app.listen(3000, async () => {
 
     console.log('🧹 Database cleaned (tables truncated)')
     console.log('🚀 Server running on http://localhost:3000')
+
+    // 🔥 INICIA O JOB AQUI
+    startReleaseExpiredReservationsJob()
   } catch (error) {
     console.error('❌ Error during server startup:', error)
   } finally {
