@@ -1,5 +1,5 @@
 import { Database } from '../database.js'
-import { ReservationTicketModel } from '../models/reservation-ticket-model.js'
+import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
 import { TicketModel, TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
 
@@ -31,13 +31,15 @@ export class ReserveTicketUseCase {
       }
 
       const reservations: ReservationTicketModel[] = []
+      const expires_at = new Date(Date.now() + 5 * 60 * 1000)
 
       for (const ticketId of ticket_ids) {
         const reservation = await ReservationTicketModel.create(
           {
             customer_id,
             ticket_id: ticketId,
-            status: TicketStatus.reserved
+            status: ReservationStatus.reserved,
+            expires_at
           },
           { connection }
         )
