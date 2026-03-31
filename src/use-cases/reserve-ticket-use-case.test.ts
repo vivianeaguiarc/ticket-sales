@@ -47,6 +47,10 @@ vi.mock('../models/ticket-model.js', () => {
 
 vi.mock('../models/reservation-ticket-model.js', () => {
   return {
+    ReservationStatus: {
+      reserved: 'reserved',
+      cancelled: 'cancelled'
+    },
     ReservationTicketModel: {
       create: createMock
     }
@@ -123,7 +127,8 @@ describe('ReserveTicketUseCase', () => {
       {
         customer_id: 10,
         ticket_id: 101,
-        status: 'reserved'
+        status: 'reserved',
+        expires_at: expect.any(Date)
       },
       {
         connection: expect.any(Object)
@@ -134,7 +139,8 @@ describe('ReserveTicketUseCase', () => {
       {
         customer_id: 10,
         ticket_id: 102,
-        status: 'reserved'
+        status: 'reserved',
+        expires_at: expect.any(Date)
       },
       {
         connection: expect.any(Object)
