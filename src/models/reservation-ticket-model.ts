@@ -65,7 +65,7 @@ export class ReservationTicketModel {
         ticket_id?: number[]
         status?: ReservationStatus
         reserved_before?: Date
-        expires_before?: Date
+        expires_at?: Date
       }
     },
     options?: { connection?: PoolConnection }
@@ -98,9 +98,9 @@ export class ReservationTicketModel {
         params.push(filter.where.reserved_before)
       }
 
-      if (filter.where.expires_before !== undefined) {
+      if (filter.where.expires_at !== undefined) {
         where.push('expires_at < ?')
-        params.push(filter.where.expires_before)
+        params.push(filter.where.expires_at)
       }
 
       if (where.length > 0) {
@@ -112,7 +112,17 @@ export class ReservationTicketModel {
 
     return rows.map((row) => new ReservationTicketModel(row as ReservationTicketModel))
   }
+  static async markAsCancelled(
+    reservationId: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
 
+    await db.execute('UPDATE reservation_tickets SET status = ? WHERE id = ?', [
+      ReservationStatus.cancelled,
+      reservationId
+    ])
+  }
   async update(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
 

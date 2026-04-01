@@ -237,7 +237,7 @@ describe('TicketModel', () => {
 
       const result = await TicketModel.findById(1)
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM tickets WHERE id = ?', [1])
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM tickets WHERE id = ? LIMIT 1', [1])
       expect(result).toBeInstanceOf(TicketModel)
       expect(result?.id).toBe(1)
       expect(result?.location).toBe('Location A')
@@ -248,7 +248,7 @@ describe('TicketModel', () => {
 
       const result = await TicketModel.findById(999)
 
-      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM tickets WHERE id = ?', [999])
+      expect(executeMock).toHaveBeenCalledWith('SELECT * FROM tickets WHERE id = ? LIMIT 1', [999])
       expect(result).toBeNull()
     })
   })

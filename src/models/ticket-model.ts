@@ -31,15 +31,18 @@ export class TicketModel {
   ): Promise<TicketModel> {
     const db = options?.connection ?? Database.getInstance()
     const created_at = new Date()
+
     const [result] = await db.execute<ResultSetHeader>(
       'INSERT INTO tickets (location, event_id, price, status, created_at) VALUES (?, ?, ?, ?, ?)',
       [data.location, data.event_id, data.price, data.status, created_at]
     )
+
     const ticket = new TicketModel({
       ...data,
       created_at,
       id: result.insertId
     })
+
     return ticket
   }
 
@@ -66,10 +69,12 @@ export class TicketModel {
       ],
       []
     )
+
     const [result] = await db.execute<ResultSetHeader>(
       `INSERT INTO tickets (location, event_id, price, status, created_at) VALUES ${values}`,
       params
     )
+
     const tickets = data.map(
       (ticket, index) =>
         new TicketModel({
@@ -78,13 +83,40 @@ export class TicketModel {
           id: result.insertId + index
         })
     )
+
     return tickets
   }
 
-  static async findById(id: number): Promise<TicketModel | null> {
-    const db = Database.getInstance()
-    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM tickets WHERE id = ?', [id])
-    return rows.length ? new TicketModel(rows[0] as TicketModel) : null
+  static async findById(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<TicketModel | null> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM tickets WHERE id = ? LIMIT 1', [
+      id
+    ])
+
+    if (!rows.length) return null
+
+    return new TicketModel(rows[0] as TicketModel)
+  }
+
+  static async updateStatus(
+    id: number,
+    status: TicketStatus,
+    options?: { connection?: PoolConnection }
+  ): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ?',
+      [status, id]
+    )
+
+    if (result.affectedRows === 0) {
+      throw new Error('Ticket not found')
+    }
   }
 
   static async findAll(
@@ -121,6 +153,7 @@ export class TicketModel {
     }
 
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
+
     return rows.map((row) => new TicketModel(row as TicketModel))
   }
 
@@ -171,10 +204,12 @@ export class TicketModel {
 
   async update(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
+
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE tickets SET location = ?, event_id = ?, price = ?, status = ? WHERE id = ?',
       [this.location, this.event_id, this.price, this.status, this.id]
     )
+
     if (result.affectedRows === 0) {
       throw new Error('Ticket not found')
     }
@@ -182,9 +217,11 @@ export class TicketModel {
 
   async delete(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
+
     const [result] = await db.execute<ResultSetHeader>('DELETE FROM tickets WHERE id = ?', [
       this.id
     ])
+
     if (result.affectedRows === 0) {
       throw new Error('Ticket not found')
     }

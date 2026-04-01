@@ -2,13 +2,30 @@ import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 import { Database } from '../database.js'
 
+type FindAllParams = {
+  where?: {
+    purchase_id?: number
+    ticket_id?: number
+  }
+}
+
 export class PurchaseTicketModel {
-  id: number = 0
-  purchase_id: number = 0
-  ticket_id: number = 0
+  id: number
+  purchase_id: number
+  ticket_id: number
 
   constructor(data: Partial<PurchaseTicketModel> = {}) {
+    this.id = 0
+    this.purchase_id = 0
+    this.ticket_id = 0
+
     this.fill(data)
+  }
+
+  fill(data: Partial<PurchaseTicketModel>) {
+    if (data.id !== undefined) this.id = data.id
+    if (data.purchase_id !== undefined) this.purchase_id = data.purchase_id
+    if (data.ticket_id !== undefined) this.ticket_id = data.ticket_id
   }
 
   static async create(
@@ -33,23 +50,23 @@ export class PurchaseTicketModel {
   }
 
   static async createMany(
-    data: {
+    items: Array<{
       purchase_id: number
       ticket_id: number
-    }[],
+    }>,
     options?: { connection?: PoolConnection }
   ): Promise<PurchaseTicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
 
-    const values = data.map(() => '(?, ?)').join(', ')
-    const params = data.flatMap((item) => [item.purchase_id, item.ticket_id])
+    const valuesSql = items.map(() => '(?, ?)').join(', ')
+    const values = items.flatMap((item) => [item.purchase_id, item.ticket_id])
 
     const [result] = await db.execute<ResultSetHeader>(
-      `INSERT INTO purchase_tickets (purchase_id, ticket_id) VALUES ${values}`,
-      params
+      `INSERT INTO purchase_tickets (purchase_id, ticket_id) VALUES ${valuesSql}`,
+      values
     )
 
-    return data.map((item, index) => {
+    return items.map((item, index) => {
       return new PurchaseTicketModel({
         id: result.insertId + index,
         purchase_id: item.purchase_id,
@@ -58,50 +75,45 @@ export class PurchaseTicketModel {
     })
   }
 
-  static async findById(id: number): Promise<PurchaseTicketModel | null> {
-    const db = Database.getInstance()
+  static async findById(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<PurchaseTicketModel | null> {
+    const db = options?.connection ?? Database.getInstance()
 
     const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT * FROM purchase_tickets WHERE id = ?',
+      'SELECT * FROM purchase_tickets WHERE id = ? LIMIT 1',
       [id]
     )
 
-    return rows.length ? new PurchaseTicketModel(rows[0] as PurchaseTicketModel) : null
+    if (!rows.length) return null
+
+    return new PurchaseTicketModel(rows[0] as PurchaseTicketModel)
   }
 
   static async findAll(
-    filter?: {
-      where?: {
-        purchase_id?: number
-        ticket_id?: number[]
-      }
-    },
+    params?: FindAllParams,
     options?: { connection?: PoolConnection }
   ): Promise<PurchaseTicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
 
-    let query = 'SELECT * FROM purchase_tickets'
-    const params: number[] = []
+    const conditions: string[] = []
+    const values: Array<number> = []
 
-    if (filter?.where) {
-      const where: string[] = []
-
-      if (filter.where.purchase_id !== undefined) {
-        where.push('purchase_id = ?')
-        params.push(filter.where.purchase_id)
-      }
-
-      if (filter.where.ticket_id && filter.where.ticket_id.length > 0) {
-        where.push(`ticket_id IN (${filter.where.ticket_id.map(() => '?').join(', ')})`)
-        params.push(...filter.where.ticket_id)
-      }
-
-      if (where.length > 0) {
-        query += ` WHERE ${where.join(' AND ')}`
-      }
+    if (params?.where?.purchase_id !== undefined) {
+      conditions.push('purchase_id = ?')
+      values.push(params.where.purchase_id)
     }
 
-    const [rows] = await db.execute<RowDataPacket[]>(query, params)
+    if (params?.where?.ticket_id !== undefined) {
+      conditions.push('ticket_id = ?')
+      values.push(params.where.ticket_id)
+    }
+
+    const whereClause = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : ''
+    const query = `SELECT * FROM purchase_tickets${whereClause}`
+
+    const [rows] = await db.execute<RowDataPacket[]>(query, values)
 
     return rows.map((row) => new PurchaseTicketModel(row as PurchaseTicketModel))
   }
@@ -130,11 +142,5 @@ export class PurchaseTicketModel {
     if (result.affectedRows === 0) {
       throw new Error('Purchase ticket not found')
     }
-  }
-
-  fill(data: Partial<PurchaseTicketModel>): void {
-    this.id = data.id ?? this.id ?? 0
-    this.purchase_id = data.purchase_id ?? this.purchase_id ?? 0
-    this.ticket_id = data.ticket_id ?? this.ticket_id ?? 0
   }
 }
