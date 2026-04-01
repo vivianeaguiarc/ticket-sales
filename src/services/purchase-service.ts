@@ -5,7 +5,7 @@ import { CustomerModel } from '../models/customer-model.js'
 import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
-import { TicketModel, TicketStatus } from '../models/ticket-model.js'
+import { TicketModel } from '../models/ticket-model.js'
 import { PaymentService } from './payment-service.js'
 
 export class PurchaseService {
@@ -28,12 +28,11 @@ export class PurchaseService {
     const connection = await db.getConnection()
 
     let purchase: PurchaseModel | undefined
-    let tickets: TicketModel[] = []
 
     try {
       await connection.beginTransaction()
 
-      tickets = await TicketModel.findAll(
+      const tickets = await TicketModel.findAll(
         {
           where: { ids: data.ticketIds }
         },
@@ -44,15 +43,10 @@ export class PurchaseService {
         throw new Error('Some tickets not found')
       }
 
-      if (tickets.some((ticket) => ticket.status !== TicketStatus.available)) {
-        throw new Error('Some tickets are not available')
-      }
-
       const amount = tickets.reduce((total, ticket) => total + ticket.price, 0)
 
       for (const ticket of tickets) {
-        ticket.status = TicketStatus.reserved
-        await ticket.update({ connection })
+        await TicketModel.reserveIfAvailable(ticket.id, { connection })
       }
 
       purchase = await PurchaseModel.create(
@@ -89,31 +83,17 @@ export class PurchaseService {
       )
 
       for (const ticket of tickets) {
-        ticket.status = TicketStatus.sold
-        await ticket.update({ connection })
+        await TicketModel.markAsSold(ticket.id, { connection })
       }
 
       purchase.status = PurchaseStatus.paid
       await purchase.update({ connection })
 
       await connection.commit()
+
       return purchase.id
     } catch (error) {
       await connection.rollback()
-
-      for (const ticket of tickets) {
-        ticket.status = TicketStatus.available
-      }
-
-      if (purchase) {
-        try {
-          purchase.status = PurchaseStatus.error
-          await purchase.update({ connection })
-        } catch {
-          // evita mascarar o erro original
-        }
-      }
-
       throw error
     } finally {
       connection.release()
@@ -137,10 +117,6 @@ export class PurchaseService {
 
     const ticketIds = purchaseTickets.map((purchaseTicket) => purchaseTicket.ticket_id)
 
-    const tickets = await TicketModel.findAll({
-      where: { ids: ticketIds }
-    })
-
     const reservations = await ReservationTicketModel.findAll({
       where: {
         customer_id: purchase.customer_id,
@@ -155,9 +131,8 @@ export class PurchaseService {
     try {
       await connection.beginTransaction()
 
-      for (const ticket of tickets) {
-        ticket.status = TicketStatus.available
-        await ticket.update({ connection })
+      for (const ticketId of ticketIds) {
+        await TicketModel.markAsAvailable(ticketId, { connection })
       }
 
       for (const reservation of reservations) {
