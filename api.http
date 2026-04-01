@@ -1,187 +1,148 @@
 ### =========================================================
-### AUTH / REGISTER
+### 1. REGISTER PARTNER
 ### =========================================================
 
 ###
-# @name registerPartner1
+# @name registerPartner
 POST http://localhost:3000/partners/register
 Content-Type: application/json
 
 {
-  "name": "Test Partner 1",
-  "email": "testuser1o@example.com",
-  "password": "testpassword",
-  "company_name": "Test Company"
+  "name": "Partner Final",
+  "email": "partner_final@test.com",
+  "password": "123456",
+  "company_name": "Final Company"
 }
 
+### =========================================================
+### 2. LOGIN PARTNER
+### =========================================================
+
 ###
-# @name loginPartner1
+# @name loginPartner
 POST http://localhost:3000/auth/login
 Content-Type: application/json
 
 {
-  "email": "testuser1o@example.com",
-  "password": "testpassword"
+  "email": "partner_final@test.com",
+  "password": "123456"
 }
 
 ###
-@tokenPartner1 = {{loginPartner1.response.body.token}}
+@tokenPartner = {{loginPartner.response.body.token}}
+
+### =========================================================
+### 3. REGISTER CUSTOMER
+### =========================================================
 
 ###
-# @name registerCustomer1
+# @name registerCustomer
 POST http://localhost:3000/customers/register
 Content-Type: application/json
 
 {
-  "name": "Test Customer 1",
-  "email": "testcustomer2@example.com",
-  "password": "testpassword",
-  "address": "123 Test St",
-  "phone": "123-456-7890"
+  "name": "Customer Final",
+  "email": "customer_final@test.com",
+  "password": "123456",
+  "address": "Rua Teste",
+  "phone": "11999999999"
 }
 
+### =========================================================
+### 4. LOGIN CUSTOMER
+### =========================================================
+
 ###
-# @name loginCustomer1
+# @name loginCustomer
 POST http://localhost:3000/auth/login
 Content-Type: application/json
 
 {
-  "email": "testcustomer2@example.com",
-  "password": "testpassword"
+  "email": "customer_final@test.com",
+  "password": "123456"
 }
 
 ###
-@tokenCustomer1 = {{loginCustomer1.response.body.token}}
+@tokenCustomer = {{loginCustomer.response.body.token}}
 
 ### =========================================================
-### EVENTS
+### 5. CREATE EVENT
 ### =========================================================
-
-### Listagem pública de todos os eventos
-GET http://localhost:3000/events
 
 ###
-# @name createEvent1
+# @name createEvent
 POST http://localhost:3000/partners/events
 Content-Type: application/json
-Authorization: Bearer {{tokenPartner1}}
+Authorization: Bearer {{tokenPartner}}
 
 {
-  "name": "Test Event 1",
-  "description": "This is a test event.",
-  "date": "2027-07-01T10:00:00Z",
-  "location": "Test Venue"
+  "name": "Evento Final",
+  "description": "Evento para fluxo final",
+  "date": "2027-08-01T10:00:00Z",
+  "location": "São Paulo"
 }
 
-### Listagem dos eventos do parceiro
-GET http://localhost:3000/partners/events
-Authorization: Bearer {{tokenPartner1}}
-
-### Detalhes do evento
-GET http://localhost:3000/partners/events/1
-Authorization: Bearer {{tokenPartner1}}
+###
+@eventId = {{createEvent.response.body.id}}
 
 ### =========================================================
-### TICKETS
+### 6. CREATE TICKETS
 ### =========================================================
 
-### Criar tickets para o evento
-POST http://localhost:3000/partners/events/1/tickets
+###
+# @name createTickets
+POST http://localhost:3000/partners/events/{{eventId}}/tickets
 Content-Type: application/json
-Authorization: Bearer {{tokenPartner1}}
+Authorization: Bearer {{tokenPartner}}
 
 {
   "num_tickets": 5,
-  "price": 50
+  "price": 100
 }
 
-### Listar tickets do evento
-GET http://localhost:3000/partners/events/1/tickets
-Authorization: Bearer {{tokenPartner1}}
-
-### Buscar um ticket específico
-GET http://localhost:3000/partners/events/1/tickets/1
-Authorization: Bearer {{tokenPartner1}}
-
 ### =========================================================
-### RESERVATIONS
+### 7. LIST TICKETS NO BANCO
+### Rode no MySQL antes da reserva:
+### SELECT id, status FROM tickets ORDER BY id;
+### Se criou tudo do zero, use [1,2] na reserva e [3,4] na compra
 ### =========================================================
 
-### Reservar tickets como cliente
-# fluxo atual usa req.user.id como customer_id
-# espera-se sucesso
+### =========================================================
+### 8. RESERVAR TICKETS (SUCESSO)
+### =========================================================
+
+###
+# @name createReservation
 POST http://localhost:3000/partners/events/reservations
 Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
+Authorization: Bearer {{tokenCustomer}}
 
 {
   "ticket_ids": [1, 2]
 }
 
-### Teste de erro de validação na reserva
-POST http://localhost:3000/partners/events/reservations
-Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
-
-{
-  "ticket_ids": []
-}
-
-### Teste de conflito: reservar ticket já reservado ou indisponível
-POST http://localhost:3000/partners/events/reservations
-Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
-
-{
-  "ticket_ids": [1]
-}
-
 ### =========================================================
-### PURCHASES
+### 9. COMPRAR OUTROS TICKETS (SUCESSO)
 ### =========================================================
 
-### Comprar tickets como cliente
-# fluxo atual cria a purchase internamente
-# use tickets ainda não reservados/comprados
-# @name createPurchase1
+###
+# @name createPurchase
 POST http://localhost:3000/partners/events/purchases
 Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
+Authorization: Bearer {{tokenCustomer}}
 
 {
-  "ticket_ids": [3, 4]
+  "ticket_ids": [3, 4],
+  "card_token": "card_token_test"
 }
 
-### Se sua rota retornar o id da purchase no body:
-### @purchaseId1 = {{createPurchase1.response.body.id}}
-
-### Teste de erro de validação na compra
-POST http://localhost:3000/partners/events/purchases
-Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
-
-{
-  "ticket_ids": []
-}
-
-### Teste de conflito: comprar ticket indisponível
-POST http://localhost:3000/partners/events/purchases
-Content-Type: application/json
-Authorization: Bearer {{tokenCustomer1}}
-
-{
-  "ticket_ids": [1]
-}
+###
+@purchaseId = {{createPurchase.response.body.id}}
 
 ### =========================================================
-### CANCEL PURCHASE
+### 10. CANCELAR COMPRA
 ### =========================================================
 
-### Cancelar compra
-### Se o endpoint de compra retornar o id da purchase, troque o 1 por {{purchaseId1}}
-DELETE http://localhost:3000/partners/events/purchases/1
-Authorization: Bearer {{tokenCustomer1}}
-
-### Teste: cancelar compra inexistente
-DELETE http://localhost:3000/partners/events/purchases/999
-Authorization: Bearer {{tokenCustomer1}}
+###
+POST http://localhost:3000/partners/events/purchases/{{purchaseId}}/cancel
+Authorization: Bearer {{tokenCustomer}}

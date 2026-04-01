@@ -1,0 +1,109 @@
+{
+  "info": {
+    "name": "Ticket Sales API",
+    "_postman_id": "ticket-sales-collection",
+    "description": "Collection para testar fluxo completo: auth, events, tickets, reservations e purchases",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Event",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Evento Teste\",\n  \"description\": \"Evento teste\",\n  \"date\": \"2027-07-01T10:00:00Z\",\n  \"location\": \"São Paulo\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/events",
+          "host": ["{{base_url}}"],
+          "path": ["events"]
+        }
+      }
+    },
+    {
+      "name": "List Events",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/events",
+          "host": ["{{base_url}}"],
+          "path": ["events"]
+        }
+      }
+    },
+    {
+      "name": "Create Tickets",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quantity\": 5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/events/1/tickets",
+          "host": ["{{base_url}}"],
+          "path": ["events", "1", "tickets"]
+        }
+      }
+    },
+    {
+      "name": "Reserve Tickets",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ticket_ids\": [1, 2]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/partners/events/reservations",
+          "host": ["{{base_url}}"],
+          "path": ["partners", "events", "reservations"]
+        }
+      }
+    },
+    {
+      "name": "Purchase Tickets",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ticket_ids\": [1, 2]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/partners/events/purchases",
+          "host": ["{{base_url}}"],
+          "path": ["partners", "events", "purchases"]
+        }
+      }
+    },
+    {
+      "name": "Cancel Purchase",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{base_url}}/partners/events/purchases/1",
+          "host": ["{{base_url}}"],
+          "path": ["partners", "events", "purchases", "1"]
+        }
+      }
+    }
+  ]
+}
