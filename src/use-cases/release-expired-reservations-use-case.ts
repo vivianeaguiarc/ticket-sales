@@ -15,7 +15,7 @@ export class ReleaseExpiredReservationsUseCase {
         {
           where: {
             status: ReservationStatus.reserved,
-            expires_before: new Date()
+            expires_at: new Date()
           }
         },
         { connection }
@@ -33,7 +33,7 @@ export class ReleaseExpiredReservationsUseCase {
           { connection }
         )
 
-        await reservation.delete({ connection })
+        await ReservationTicketModel.markAsCancelled(reservation.id, { connection })
       }
 
       await connection.commit()
