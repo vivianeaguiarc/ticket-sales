@@ -37,12 +37,10 @@
 import { app } from './app.js'
 import { startReleaseExpiredReservationsJob } from './jobs/release-expired-reservations-job.js'
 
-app.listen(3000, async () => {
-  try {
-    console.log('🚀 Server running on http://localhost:3000')
+const PORT = 3000
 
-    startReleaseExpiredReservationsJob()
-  } catch (error) {
-    console.error('❌ Error during server startup:', error)
-  }
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
+
+  startReleaseExpiredReservationsJob()
 })
