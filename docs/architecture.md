@@ -124,6 +124,66 @@ HTTP Request
   → MySQL
 ```
 
+## Módulo migrado: Tickets
+
+Fluxos migrados:
+
+- **Criação em lote** (`POST /partners/events/:eventId/tickets`)
+- **Listagem por evento** (`GET /partners/events/:eventId/tickets`)
+- **Busca por id** (`GET /partners/events/:eventId/tickets/:ticketId`)
+
+### Componentes criados/estendidos
+
+| Camada      | Arquivo                                               | Responsabilidade                             |
+| ----------- | ----------------------------------------------------- | -------------------------------------------- |
+| Domain      | `domain/entities/ticket-status-history.ts`            | Entidade de histórico                        |
+| Domain      | `domain/errors/ticket-errors.ts`                      | Erros de ticket e transição de status        |
+| Domain      | `domain/repositories/event-repository.ts`             | Port mínimo para validar evento              |
+| Domain      | `domain/repositories/ticket-repository.ts`            | Port completo de tickets (CRUD + transições) |
+| Application | `application/use-cases/create-tickets-use-case.ts`    | Criação transacional com audit               |
+| Application | `application/use-cases/get-event-tickets-use-case.ts` | Listagem por evento                          |
+| Application | `application/use-cases/get-ticket-by-id-use-case.ts`  | Busca com validação de evento                |
+| Infra       | `infra/repositories/mysql-ticket-repository.ts`       | Adapter expandido (find/create/transições)   |
+| Infra       | `infra/repositories/mysql-event-repository.ts`        | Adapter de eventos                           |
+| Infra       | `infra/composition/ticket-factory.ts`                 | Composition root compartilhado               |
+| Shared      | `shared/mappers/ticket-mapper.ts`                     | Domínio → `TicketModel` (API)                |
+| Legado      | `services/ticket-service.ts`                          | Facade delegando à application layer         |
+
+### Dependências com Reservations e Purchases
+
+`TicketRepository` é **compartilhado** entre os três módulos:
+
+| Módulo       | Métodos utilizados                                            |
+| ------------ | ------------------------------------------------------------- |
+| Reservations | `findByIds`, `reserveIfAvailable`                             |
+| Purchases    | `findByIds`, `sellIfAvailable`, `releaseIfSold`               |
+| Tickets      | `findById`, `findByEventId`, `createMany`, `markAsSold`, etc. |
+
+Factories (`create-reservation-factory`, `purchase-factory`, `ticket-factory`) instanciam o mesmo `MysqlTicketRepository` via `getSharedTicketRepository()` no módulo Tickets.
+
+### O que ainda está legado (Tickets)
+
+| Componente                                                              | Situação                                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------- |
+| `ReserveTicketUseCase` / `PurchaseTicketUseCase` em `ticket-controller` | Não migrados; ainda acessam models diretamente |
+| `TicketModel` / `TicketStatusHistoryModel`                              | Encapsulados por adapters; SQL não reescrito   |
+| Rotas duplicadas reserva/compra em `app.ts`                             | Pendente unificação                            |
+
+### Fluxo após migração Tickets
+
+```
+HTTP Request
+  → ticket-controller
+  → getCreateTicketsUseCase() / getGetEventTicketsUseCase() / getGetTicketByIdUseCase()
+  → Application use case
+  → TicketRepository / EventRepository / AuditLogRepository [interfaces]
+  → MysqlTicketRepository / MysqlEventRepository [infra]
+  → TicketModel / EventModel [legado]
+  → MySQL
+```
+
+### Fluxo Reservas (referência)
+
 ```
 HTTP Request
   → reservation-controller
@@ -148,13 +208,14 @@ HTTP Request
 | ---- | ----------------------------------------------------------- | ------------ |
 | 1    | Reservas (`CreateReservationUseCase`)                       | ✅ Concluído |
 | 2    | Compras (`CreatePurchaseUseCase` / `CancelPurchaseUseCase`) | ✅ Concluído |
-| 3    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
-| 4    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
-| 5    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
-| 6    | Eventos e tickets (criação)                                 | Pendente     |
-| 7    | Auth, partners, customers                                   | Pendente     |
-| 8    | Jobs (expiração de reservas)                                | Pendente     |
-| 9    | Mover controllers para `presentation/`                      | Pendente     |
+| 3    | Tickets (CRUD + transições via `TicketRepository`)          | ✅ Concluído |
+| 4    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
+| 5    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
+| 6    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
+| 7    | Eventos (`EventService`)                                    | Pendente     |
+| 8    | Auth, partners, customers                                   | Pendente     |
+| 9    | Jobs (expiração de reservas)                                | Pendente     |
+| 10   | Mover controllers para `presentation/`                      | Pendente     |
 
 ### Próximo passo recomendado
 

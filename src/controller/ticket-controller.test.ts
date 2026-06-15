@@ -2,12 +2,14 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+import { Ticket, TicketStatus } from '../domain/entities/ticket.js'
+
 const {
   findPartnerByUserIdMock,
   findCustomerByUserIdMock,
-  createManyMock,
-  findByEventIdMock,
-  findByIdMock,
+  createTicketsExecuteMock,
+  getEventTicketsExecuteMock,
+  getTicketByIdExecuteMock,
   reserveTicketExecuteMock,
   purchaseTicketExecuteMock,
   cancelPurchaseExecuteMock
@@ -15,9 +17,9 @@ const {
   return {
     findPartnerByUserIdMock: vi.fn(),
     findCustomerByUserIdMock: vi.fn(),
-    createManyMock: vi.fn(),
-    findByEventIdMock: vi.fn(),
-    findByIdMock: vi.fn(),
+    createTicketsExecuteMock: vi.fn(),
+    getEventTicketsExecuteMock: vi.fn(),
+    getTicketByIdExecuteMock: vi.fn(),
     reserveTicketExecuteMock: vi.fn(),
     purchaseTicketExecuteMock: vi.fn(),
     cancelPurchaseExecuteMock: vi.fn()
@@ -40,13 +42,17 @@ vi.mock('../services/customer-service.js', () => {
   }
 })
 
-vi.mock('../services/ticket-service.js', () => {
+vi.mock('../infra/composition/ticket-factory.js', () => {
   return {
-    TicketService: class {
-      createMany = createManyMock
-      findByEventId = findByEventIdMock
-      findById = findByIdMock
-    }
+    getCreateTicketsUseCase: () => ({
+      execute: createTicketsExecuteMock
+    }),
+    getGetEventTicketsUseCase: () => ({
+      execute: getEventTicketsExecuteMock
+    }),
+    getGetTicketByIdUseCase: () => ({
+      execute: getTicketByIdExecuteMock
+    })
   }
 })
 
@@ -100,7 +106,7 @@ describe('TicketController', () => {
     }
 
     findPartnerByUserIdMock.mockResolvedValue(mockPartner)
-    createManyMock.mockResolvedValue(undefined)
+    createTicketsExecuteMock.mockResolvedValue(undefined)
 
     const response = await request(app).post('/partners/events/1/tickets').send({
       num_tickets: 10,
@@ -111,7 +117,7 @@ describe('TicketController', () => {
     expect(response.text).toBe('')
 
     expect(findPartnerByUserIdMock).toHaveBeenCalledWith(1)
-    expect(createManyMock).toHaveBeenCalledWith({
+    expect(createTicketsExecuteMock).toHaveBeenCalledWith({
       eventId: 1,
       numTickets: 10,
       price: 150,
@@ -133,38 +139,64 @@ describe('TicketController', () => {
     })
 
     expect(findPartnerByUserIdMock).toHaveBeenCalledWith(1)
-    expect(createManyMock).not.toHaveBeenCalled()
+    expect(createTicketsExecuteMock).not.toHaveBeenCalled()
   })
 
   test('deve listar tickets por evento com sucesso', async () => {
+    const createdAt = new Date('2027-01-01T00:00:00.000Z')
     const tickets = [
-      { id: 1, event_id: 1, price: 100, status: 'available' },
-      { id: 2, event_id: 1, price: 100, status: 'available' }
+      new Ticket(1, 1, 'Location 0', 100, TicketStatus.available, createdAt),
+      new Ticket(2, 1, 'Location 1', 100, TicketStatus.available, createdAt)
     ]
 
-    findByEventIdMock.mockResolvedValue(tickets)
+    getEventTicketsExecuteMock.mockResolvedValue(tickets)
 
     const response = await request(app).get('/partners/events/1/tickets')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual(tickets)
-    expect(findByEventIdMock).toHaveBeenCalledWith(1)
+    expect(response.body).toEqual([
+      {
+        id: 1,
+        event_id: 1,
+        location: 'Location 0',
+        price: 100,
+        status: TicketStatus.available,
+        created_at: createdAt.toISOString()
+      },
+      {
+        id: 2,
+        event_id: 1,
+        location: 'Location 1',
+        price: 100,
+        status: TicketStatus.available,
+        created_at: createdAt.toISOString()
+      }
+    ])
+    expect(getEventTicketsExecuteMock).toHaveBeenCalledWith({ eventId: 1 })
   })
 
   test('deve buscar um ticket por id com sucesso', async () => {
-    const ticket = { id: 1, event_id: 1, price: 100, status: 'available' }
+    const createdAt = new Date('2027-01-01T00:00:00.000Z')
+    const ticket = new Ticket(1, 1, 'Location 0', 100, TicketStatus.available, createdAt)
 
-    findByIdMock.mockResolvedValue(ticket)
+    getTicketByIdExecuteMock.mockResolvedValue(ticket)
 
     const response = await request(app).get('/partners/events/1/tickets/1')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual(ticket)
-    expect(findByIdMock).toHaveBeenCalledWith(1, 1)
+    expect(response.body).toEqual({
+      id: 1,
+      event_id: 1,
+      location: 'Location 0',
+      price: 100,
+      status: TicketStatus.available,
+      created_at: createdAt.toISOString()
+    })
+    expect(getTicketByIdExecuteMock).toHaveBeenCalledWith({ eventId: 1, ticketId: 1 })
   })
 
   test('deve retornar 404 ao buscar ticket inexistente', async () => {
-    findByIdMock.mockResolvedValue(null)
+    getTicketByIdExecuteMock.mockResolvedValue(null)
 
     const response = await request(app).get('/partners/events/1/tickets/999')
 
@@ -173,7 +205,7 @@ describe('TicketController', () => {
       message: 'Ticket not found'
     })
 
-    expect(findByIdMock).toHaveBeenCalledWith(1, 999)
+    expect(getTicketByIdExecuteMock).toHaveBeenCalledWith({ eventId: 1, ticketId: 999 })
   })
 
   test('deve reservar tickets com sucesso', async () => {
@@ -371,18 +403,26 @@ describe('TicketController', () => {
   })
 
   test('deve retornar ticket por id com sucesso', async () => {
-    const ticket = { id: 5, event_id: 1, price: 100 }
+    const createdAt = new Date('2027-01-01T00:00:00.000Z')
+    const ticket = new Ticket(5, 1, 'Location 0', 100, TicketStatus.available, createdAt)
 
-    findByIdMock.mockResolvedValue(ticket)
+    getTicketByIdExecuteMock.mockResolvedValue(ticket)
 
     const response = await request(app).get('/partners/events/1/tickets/5')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual(ticket)
+    expect(response.body).toEqual({
+      id: 5,
+      event_id: 1,
+      location: 'Location 0',
+      price: 100,
+      status: TicketStatus.available,
+      created_at: createdAt.toISOString()
+    })
   })
 
   test('deve retornar 404 ao buscar ticket inexistente', async () => {
-    findByIdMock.mockResolvedValue(null)
+    getTicketByIdExecuteMock.mockResolvedValue(null)
 
     const response = await request(app).get('/partners/events/1/tickets/999')
 

@@ -1,8 +1,13 @@
 import { Router } from 'express'
 
+import {
+  getCreateTicketsUseCase,
+  getGetEventTicketsUseCase,
+  getGetTicketByIdUseCase
+} from '../infra/composition/ticket-factory.js'
 import { CustomerService } from '../services/customer-service.js'
 import { PartnerService } from '../services/partner-service.js'
-import { TicketService } from '../services/ticket-service.js'
+import { toTicketModel, toTicketModels } from '../shared/mappers/ticket-mapper.js'
 import { CancelPurchaseUseCase } from '../use-cases/cancel-purchase-use-case.js'
 import { PurchaseTicketUseCase } from '../use-cases/purchase-ticket-use-case.js'
 import { ReserveTicketUseCase } from '../use-cases/reserve-ticket-use-case.js'
@@ -21,9 +26,8 @@ ticketRoutes.post('/:eventId/tickets', async (req, res) => {
 
   const { num_tickets, price } = req.body
   const { eventId } = req.params
-  const ticketService = new TicketService()
 
-  await ticketService.createMany({
+  await getCreateTicketsUseCase().execute({
     eventId: +eventId,
     numTickets: num_tickets,
     price,
@@ -35,23 +39,24 @@ ticketRoutes.post('/:eventId/tickets', async (req, res) => {
 
 ticketRoutes.get('/:eventId/tickets', async (req, res) => {
   const { eventId } = req.params
-  const ticketService = new TicketService()
-  const data = await ticketService.findByEventId(+eventId)
+  const tickets = await getGetEventTicketsUseCase().execute({ eventId: +eventId })
 
-  res.json(data)
+  res.json(toTicketModels(tickets))
 })
 
 ticketRoutes.get('/:eventId/tickets/:ticketId', async (req, res) => {
   const { eventId, ticketId } = req.params
-  const ticketService = new TicketService()
-  const ticket = await ticketService.findById(+eventId, +ticketId)
+  const ticket = await getGetTicketByIdUseCase().execute({
+    eventId: +eventId,
+    ticketId: +ticketId
+  })
 
   if (!ticket) {
     res.status(404).json({ message: 'Ticket not found' })
     return
   }
 
-  res.json(ticket)
+  res.json(toTicketModel(ticket))
 })
 
 ticketRoutes.post('/reservations', async (req, res) => {

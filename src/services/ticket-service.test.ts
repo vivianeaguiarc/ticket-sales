@@ -50,15 +50,35 @@ vi.mock('../models/event-model.js', () => {
 })
 
 vi.mock('../models/ticket-model.js', () => {
+  class TicketModelMock {
+    id: number
+    event_id: number
+    location: string
+    price: number
+    status: string
+    created_at: Date
+
+    constructor(data: Partial<TicketModelMock> = {}) {
+      Object.assign(this, data)
+    }
+
+    static createMany = createManyMock
+    static findAll = findAllTicketsMock
+    static findById = findTicketByIdMock
+    static reserveIfAvailable = vi.fn()
+    static sellIfAvailable = vi.fn()
+    static markAsSold = vi.fn()
+    static markAsAvailable = vi.fn()
+    static releaseIfSold = vi.fn()
+  }
+
   return {
     TicketStatus: {
-      available: 'available'
+      available: 'available',
+      reserved: 'reserved',
+      sold: 'sold'
     },
-    TicketModel: {
-      createMany: createManyMock,
-      findAll: findAllTicketsMock,
-      findById: findTicketByIdMock
-    }
+    TicketModel: TicketModelMock
   }
 })
 
@@ -140,6 +160,7 @@ describe('TicketService', () => {
           action: 'TICKETS_CREATED',
           entity_type: 'ticket',
           entity_id: 1,
+          old_data: null,
           new_data: {
             event_id: 1,
             ticket_ids: [101, 102, 103],
@@ -194,16 +215,26 @@ describe('TicketService', () => {
 
   describe('findByEventId', () => {
     test('deve retornar tickets do evento', async () => {
-      const tickets = [{ id: 1, event_id: 5 }]
-
       findByIdMock.mockResolvedValue({ id: 5 })
-      findAllTicketsMock.mockResolvedValue(tickets)
+      findAllTicketsMock.mockResolvedValue([
+        {
+          id: 1,
+          event_id: 5,
+          location: 'A1',
+          price: 50,
+          status: 'available',
+          created_at: new Date()
+        }
+      ])
 
       const result = await ticketService.findByEventId(5)
 
       expect(findByIdMock).toHaveBeenCalledWith(5)
-      expect(findAllTicketsMock).toHaveBeenCalledWith({ where: { event_id: 5 } })
-      expect(result).toEqual(tickets)
+      expect(findAllTicketsMock).toHaveBeenCalledWith(
+        { where: { event_id: 5 } },
+        { connection: undefined }
+      )
+      expect(result[0]).toMatchObject({ id: 1, event_id: 5 })
     })
 
     test('deve lançar erro se evento não existir', async () => {
@@ -215,14 +246,21 @@ describe('TicketService', () => {
 
   describe('findById', () => {
     test('deve retornar ticket quando pertencer ao evento', async () => {
-      const ticket = { id: 10, event_id: 5 }
+      const ticket = {
+        id: 10,
+        event_id: 5,
+        location: 'A1',
+        price: 100,
+        status: 'available',
+        created_at: new Date()
+      }
 
       findTicketByIdMock.mockResolvedValue(ticket)
 
       const result = await ticketService.findById(5, 10)
 
-      expect(findTicketByIdMock).toHaveBeenCalledWith(10)
-      expect(result).toEqual(ticket)
+      expect(findTicketByIdMock).toHaveBeenCalledWith(10, { connection: undefined })
+      expect(result).toMatchObject({ id: 10, event_id: 5 })
     })
 
     test('deve retornar null quando ticket pertencer a outro evento', async () => {

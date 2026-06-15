@@ -26,16 +26,4 @@ export class PurchaseTicketsNotFoundError extends Error {
   }
 }
 
-export class TicketUnavailableError extends Error {
-  constructor(ticketId: number) {
-    super(`Ticket ${ticketId} is not available`)
-    this.name = 'TicketUnavailableError'
-  }
-}
-
-export class TicketNotFoundError extends Error {
-  constructor(message = 'Ticket not found') {
-    super(message)
-    this.name = 'TicketNotFoundError'
-  }
-}
+export { TicketNotFoundError, TicketUnavailableError } from './ticket-errors.js'

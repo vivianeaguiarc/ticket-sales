@@ -90,6 +90,18 @@ vi.mock('../services/ticket-service.js', () => ({
   }
 }))
 
+vi.mock('../infra/composition/ticket-factory.js', () => ({
+  getCreateTicketsUseCase: () => ({
+    execute: ticketCreateManyMock
+  }),
+  getGetEventTicketsUseCase: () => ({
+    execute: vi.fn()
+  }),
+  getGetTicketByIdUseCase: () => ({
+    execute: vi.fn()
+  })
+}))
+
 vi.mock('../use-cases/reserve-ticket-use-case.js', () => ({
   ReserveTicketUseCase: {
     execute: reserveTicketExecuteMock
