@@ -1,18 +1,20 @@
 ### =========================================================
 ### Ticket Sales API — Fluxo feliz completo
+###
 ### Pré-requisitos:
-### 1. MySQL rodando (porta 3307 por padrão do projeto)
-### 2. Banco `tickets` criado e schema aplicado (db.sql)
-### 3. API em execução: pnpm dev
-### 4. Extensão REST Client (VS Code / Cursor) para executar as requests
+### 1. MySQL rodando (porta 3307 no host — docker compose up -d mysql)
+### 2. Schema aplicado (db.sql via volume na primeira subida do MySQL)
+### 3. API em execução: pnpm dev  OU  docker compose up -d
+### 4. Extensão REST Client (VS Code / Cursor)
+###
+### Dica: para banco limpo, rode docker compose down -v antes de subir.
+### Execute os blocos NA ORDEM (0 → 12).
 ### =========================================================
 
 @baseUrl = http://localhost:3000
 
 ### =========================================================
 ### 0. HEALTH CHECK (sem autenticação)
-### GET /health — verifica API + conexão MySQL
-### GET /ready — readiness para Kubernetes/Docker
 ### =========================================================
 
 ###
@@ -25,7 +27,7 @@ GET {{baseUrl}}/ready
 
 ### =========================================================
 ### 1. CADASTRO DO PARCEIRO
-### Rota pública — POST /partners/register
+### POST /partners/register — público — esperado: 201
 ### =========================================================
 
 ###
@@ -42,7 +44,7 @@ Content-Type: application/json
 
 ### =========================================================
 ### 2. LOGIN DO PARCEIRO
-### Rota pública — POST /auth/login
+### POST /auth/login — público — esperado: 200 + token
 ### =========================================================
 
 ###
@@ -60,7 +62,7 @@ Content-Type: application/json
 
 ### =========================================================
 ### 3. CADASTRO DO CLIENTE
-### Rota pública — POST /customers/register
+### POST /customers/register — público — esperado: 201
 ### =========================================================
 
 ###
@@ -78,7 +80,7 @@ Content-Type: application/json
 
 ### =========================================================
 ### 4. LOGIN DO CLIENTE
-### Rota pública — POST /auth/login
+### POST /auth/login — público — esperado: 200 + token
 ### =========================================================
 
 ###
@@ -95,9 +97,8 @@ Content-Type: application/json
 @tokenCustomer = {{loginCustomer.response.body.token}}
 
 ### =========================================================
-### 5. CRIAR EVENTO (parceiro autenticado)
-### POST /partners/events
-### Esperado: 201
+### 5. CRIAR EVENTO (partner autenticado)
+### POST /partners/events — esperado: 201
 ### =========================================================
 
 ###
@@ -117,9 +118,8 @@ Authorization: Bearer {{tokenPartner}}
 @eventId = {{createEvent.response.body.id}}
 
 ### =========================================================
-### 6. CRIAR TICKETS EM LOTE (parceiro autenticado)
-### POST /partners/events/:eventId/tickets
-### Esperado: 204
+### 6. CRIAR TICKETS EM LOTE (partner autenticado)
+### POST /partners/events/:eventId/tickets — esperado: 204
 ### =========================================================
 
 ###
@@ -135,8 +135,8 @@ Authorization: Bearer {{tokenPartner}}
 
 ### =========================================================
 ### 7. LISTAR TICKETS DO EVENTO
-### GET /partners/events/:eventId/tickets
-### Use os IDs retornados nas próximas etapas
+### GET /partners/events/:eventId/tickets — esperado: 200
+### IDs dinâmicos usados nas etapas 9 e 10
 ### =========================================================
 
 ###
@@ -144,10 +144,15 @@ Authorization: Bearer {{tokenPartner}}
 GET {{baseUrl}}/partners/events/{{eventId}}/tickets
 Authorization: Bearer {{tokenPartner}}
 
+###
+@ticketId1 = {{listTickets.response.body.$[0].id}}
+@ticketId2 = {{listTickets.response.body.$[1].id}}
+@ticketId3 = {{listTickets.response.body.$[2].id}}
+@ticketId4 = {{listTickets.response.body.$[3].id}}
+
 ### =========================================================
 ### 7.1 HISTÓRICO DO EVENTO (partner dono)
-### GET /partners/events/:eventId/history
-### Retorna ticket_status_history + audit_logs em ordem decrescente
+### GET /partners/events/:eventId/history — esperado: 200
 ### =========================================================
 
 ###
@@ -156,18 +161,17 @@ GET {{baseUrl}}/partners/events/{{eventId}}/history
 Authorization: Bearer {{tokenPartner}}
 
 ### =========================================================
-### 8. VALIDAÇÃO NO MYSQL (antes de reservar/comprar)
-### Ajuste os IDs conforme o retorno do passo 7
+### 8. VALIDAÇÃO NO MYSQL (opcional, antes de reservar/comprar)
+### docker exec -it ticket-sales-db mysql -uroot -proot tickets
 ### =========================================================
 
-# SELECT id, status, price FROM tickets WHERE event_id = <eventId> ORDER BY id;
-# Exemplo em banco limpo após criar 5 tickets: IDs 1..5, todos `available`
+# SELECT id, status, price FROM tickets WHERE event_id = {{eventId}} ORDER BY id;
+# Esperado: 5 tickets com status `available`
 
 ### =========================================================
-### 9. RESERVAR TICKETS (cliente autenticado)
-### POST /partners/events/reservations
-### Ciclo: available -> reserved
-### Esperado: 201
+### 9. RESERVAR TICKETS (customer autenticado)
+### POST /partners/events/reservations — esperado: 201
+### Ciclo: available → reserved
 ### =========================================================
 
 ###
@@ -177,14 +181,13 @@ Content-Type: application/json
 Authorization: Bearer {{tokenCustomer}}
 
 {
-  "ticket_ids": [1, 2]
+  "ticket_ids": [{{ticketId1}}, {{ticketId2}}]
 }
 
 ### =========================================================
-### 10. COMPRAR OUTROS TICKETS (cliente autenticado)
-### POST /partners/events/purchases
-### Ciclo: available -> sold
-### Esperado: 201
+### 10. COMPRAR OUTROS TICKETS (customer autenticado)
+### POST /partners/events/purchases — esperado: 201
+### Ciclo: available → sold | card_token obrigatório
 ### =========================================================
 
 ###
@@ -194,7 +197,7 @@ Content-Type: application/json
 Authorization: Bearer {{tokenCustomer}}
 
 {
-  "ticket_ids": [3, 4],
+  "ticket_ids": [{{ticketId3}}, {{ticketId4}}],
   "card_token": "card_token_test_12345"
 }
 
@@ -203,9 +206,8 @@ Authorization: Bearer {{tokenCustomer}}
 
 ### =========================================================
 ### 11. CANCELAR COMPRA
-### POST /partners/events/purchases/:id/cancel
-### Ciclo: sold -> available
-### Esperado: 200
+### POST /partners/events/purchases/:id/cancel — esperado: 200
+### Ciclo: sold → available
 ### =========================================================
 
 ###
@@ -217,28 +219,24 @@ Authorization: Bearer {{tokenCustomer}}
 ### 12. VALIDAÇÃO FINAL NO MYSQL
 ### =========================================================
 
-# -- Tickets reservados
-# SELECT id, status FROM tickets WHERE id IN (1, 2);
-# -- Esperado após reserva: reserved
-# -- Esperado após expiração automática (job a cada 60s): available
+# -- Tickets reservados (etapa 9)
+# SELECT id, status FROM tickets WHERE id IN ({{ticketId1}}, {{ticketId2}});
+# Após reserva: reserved | Após job (60s): available
 
-# -- Tickets comprados e cancelados
-# SELECT id, status FROM tickets WHERE id IN (3, 4);
-# -- Esperado após compra: sold
-# -- Esperado após cancelamento: available
+# -- Tickets comprados e cancelados (etapas 10–11)
+# SELECT id, status FROM tickets WHERE id IN ({{ticketId3}}, {{ticketId4}});
+# Após compra: sold | Após cancelamento: available
 
-# -- Histórico de status
 # SELECT ticket_id, from_status, to_status, changed_at
-# FROM ticket_status_history
-# ORDER BY changed_at DESC;
+# FROM ticket_status_history ORDER BY changed_at DESC LIMIT 20;
 
-# -- Reservas
 # SELECT id, ticket_id, status, expires_at
-# FROM reservation_tickets
-# ORDER BY id DESC;
+# FROM reservation_tickets ORDER BY id DESC LIMIT 10;
 
-# -- Compras
-# SELECT id, status, total_amount FROM purchases ORDER BY id DESC;
+# SELECT id, status, total_amount FROM purchases ORDER BY id DESC LIMIT 5;
+
+# SELECT action, entity_type, entity_id, created_at
+# FROM audit_logs ORDER BY created_at DESC LIMIT 10;
 
 ### =========================================================
 ### ROTAS PÚBLICAS ADICIONAIS
@@ -252,9 +250,39 @@ GET {{baseUrl}}/events
 # @name getPublicEvent
 GET {{baseUrl}}/events/{{eventId}}
 
+###
+# @name listPartnerEvents
+GET {{baseUrl}}/partners/events
+Authorization: Bearer {{tokenPartner}}
+
 ### =========================================================
 ### DOCUMENTAÇÃO INTERATIVA
-### Swagger UI disponível em /docs (estrutura básica)
+### Swagger UI: GET /docs
 ### =========================================================
 
-# GET {{baseUrl}}/docs
+###
+# @name swaggerDocs
+GET {{baseUrl}}/docs
+
+### =========================================================
+### CENÁRIOS DE ERRO (referência — descomente para testar)
+### =========================================================
+
+# POST {{baseUrl}}/auth/login
+# Content-Type: application/json
+#
+# { "email": "invalido@test.com", "password": "errado" }
+# Esperado: 401
+
+# POST {{baseUrl}}/partners/events
+# Content-Type: application/json
+#
+# { "name": "Sem token" }
+# Esperado: 401 No token provided
+
+# POST {{baseUrl}}/partners/events/purchases
+# Content-Type: application/json
+# Authorization: Bearer {{tokenCustomer}}
+#
+# { "ticket_ids": [99999], "card_token": "x" }
+# Esperado: 404 Some tickets not found

@@ -1,128 +1,86 @@
 # Ticket Sales API
 
-API REST para venda de ingressos de eventos, com autenticação JWT, reservas temporárias, compras, cancelamentos, histórico de status e controle de concorrência em MySQL.
+API REST para venda de ingressos de eventos, com autenticação JWT, reservas temporárias, compras, cancelamentos, histórico de status, audit logs e controle de concorrência em MySQL.
 
-Projeto desenvolvido com foco em fundamentos de backend: transações, locking pessimista, testes automatizados e evolução arquitetural em camadas.
-
----
-
-## Objetivo do sistema
-
-Permitir que **parceiros** criem eventos e tickets, e que **clientes** reservem ou comprem ingressos de forma segura, evitando venda duplicada do mesmo ticket em cenários concorrentes.
+Projeto de portfólio com foco em **fundamentos de backend**: transações, locking pessimista, testes automatizados (unitários, integração e E2E) e evolução incremental para **Clean Architecture**.
 
 ---
 
-## Regras de negócio principais
+## Visão geral
 
-### Ciclo de vida do ticket
+O **Ticket Sales** conecta **parceiros** (organizadores) e **clientes** (compradores) em um fluxo completo de ticketing:
+
+1. Partner cria evento e tickets
+2. Customer reserva ou compra ingressos
+3. Sistema garante integridade em cenários concorrentes
+4. Reservas expiram automaticamente; compras podem ser canceladas
+5. Toda ação relevante é auditada e rastreável
+
+**Documentação técnica:**
+
+| Documento                                          | Conteúdo                                 |
+| -------------------------------------------------- | ---------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)       | Camadas, migração, decisões e trade-offs |
+| [docs/business-rules.md](docs/business-rules.md)   | Regras de domínio detalhadas             |
+| [docs/interview-guide.md](docs/interview-guide.md) | Roteiro para entrevistas técnicas        |
+
+---
+
+## Problema que o sistema resolve
+
+Em vendas de ingressos, múltiplos clientes podem tentar comprar o **mesmo ticket** ao mesmo tempo. Sem controle adequado, o sistema pode:
+
+- Vender o mesmo ingresso duas vezes (double selling)
+- Deixar tickets bloqueados indefinidamente após reservas abandonadas
+- Perder rastreabilidade de quem fez o quê e quando
+
+O Ticket Sales resolve isso com **transações MySQL**, **locking pessimista** (`SELECT FOR UPDATE`), **updates condicionais de status** e um **job de expiração** de reservas.
+
+---
+
+## Principais funcionalidades
+
+| Funcionalidade   | Descrição                                                      |
+| ---------------- | -------------------------------------------------------------- |
+| Autenticação JWT | Login, cadastro de partner/customer, rotas protegidas          |
+| Eventos          | CRUD por partner; listagem pública                             |
+| Tickets          | Criação em lote, listagem, ciclo `available → reserved → sold` |
+| Reservas         | Bloqueio temporário (5 min) com expiração automática           |
+| Compras          | Compra transacional com `card_token` (contrato API)            |
+| Cancelamento     | Restaura tickets e cancela purchase                            |
+| Histórico        | `ticket_status_history` + consulta unificada por evento        |
+| Audit logs       | Rastreabilidade de ações de negócio                            |
+| Health / Ready   | Liveness e readiness com verificação real do MySQL             |
+| Swagger          | Documentação interativa em `/docs`                             |
+| Docker           | Compose com API + MySQL; Dockerfile para deploy                |
+| Testes           | ~331 unit/integration + 15 E2E; cobertura ~86%                 |
+
+---
+
+## Regras de negócio (resumo)
 
 ```
 available → reserved → sold
+     ↑         │         │
+     └─────────┴─────────┘
+   (expiração / cancelamento)
 ```
 
-- Cancelamentos e expirações de reserva restauram o ticket para `available`.
-- Toda mudança relevante de status é registrada em `ticket_status_history`.
-- Ações importantes do sistema são registradas em `audit_logs` (criação de eventos/tickets, reservas, compras, cancelamentos e expirações).
+| Regra        | Detalhe                                          |
+| ------------ | ------------------------------------------------ |
+| Reserva      | Tickets `available`; expira em **5 minutos**     |
+| Expiração    | Job a cada **60s** libera reservas vencidas      |
+| Compra       | Tickets `available`; cria purchase `paid`        |
+| Cancelamento | Tickets `sold → available`; purchase `cancelled` |
+| Concorrência | `FOR UPDATE` + `UPDATE WHERE status = ...`       |
 
-### Audit logs
-
-A tabela `audit_logs` registra eventos de negócio e técnicos para rastreabilidade e auditoria:
-
-| Action                | Entity        | Quando                                       |
-| --------------------- | ------------- | -------------------------------------------- |
-| `EVENT_CREATED`       | `event`       | Parceiro cria um evento                      |
-| `TICKETS_CREATED`     | `ticket`      | Parceiro cria tickets em lote                |
-| `TICKETS_RESERVED`    | `reservation` | Cliente reserva tickets                      |
-| `RESERVATION_EXPIRED` | `reservation` | Job libera reserva expirada (`user_id` nulo) |
-| `PURCHASE_CREATED`    | `purchase`    | Cliente compra tickets                       |
-| `PURCHASE_CANCELLED`  | `purchase`    | Compra é cancelada                           |
-
-Cada registro pode incluir `user_id`, `entity_id`, `old_data` e `new_data` (JSON) com o contexto da operação. Os audit logs são gravados na mesma transação da operação principal.
-
-Consulta no MySQL:
-
-```sql
-SELECT * FROM audit_logs ORDER BY created_at DESC;
-```
-
-Filtrar por ação:
-
-```sql
-SELECT * FROM audit_logs WHERE action = 'PURCHASE_CREATED' ORDER BY created_at DESC;
-```
-
-### Histórico do evento (API)
-
-Partners autenticados podem consultar alterações e auditorias dos tickets de um evento:
-
-```http
-GET /partners/events/:eventId/history
-Authorization: Bearer <token_partner>
-```
-
-Retorna um array unificado com `ticket_status_history` e `audit_log`, ordenado por data decrescente. Apenas o partner dono do evento pode acessar (403 caso contrário).
-
-### Health e Readiness
-
-Endpoints públicos para monitoramento e orquestração (Kubernetes, Docker, load balancers):
-
-| Endpoint      | Uso           | Sucesso (200)                                        | Falha (503)                |
-| ------------- | ------------- | ---------------------------------------------------- | -------------------------- |
-| `GET /health` | Liveness + DB | `{ status: "ok", database: "connected", timestamp }` | `database: "disconnected"` |
-| `GET /ready`  | Readiness     | `{ ready: true }`                                    | `{ ready: false }`         |
-
-Ambos executam `SELECT 1` no MySQL para validar conexão real.
-
-### Tickets
-
-- Criados em lote pelo parceiro dono do evento.
-- Status inicial: `available`.
-
-### Reservas
-
-- Cliente autenticado pode reservar um ou mais tickets `available`.
-- Reserva expira automaticamente após 5 minutos (job em background).
-- Na expiração: reserva → `cancelled`, ticket → `available`, histórico registrado.
-
-### Compras
-
-- Cliente autenticado compra tickets `available`.
-- Compra cria `purchase`, `purchase_tickets`, altera ticket para `sold` e registra histórico.
-- Operações críticas usam `UPDATE ... WHERE status = 'available'` para evitar double selling.
-
-### Cancelamento de compra
-
-- Restaura tickets para `available`.
-- Atualiza purchase para `cancelled`.
-- Cancela reservas relacionadas, se existirem.
-- Registra histórico `sold → available`.
-
-### Concorrência
-
-- `SELECT ... FOR UPDATE` em operações críticas.
-- Atualizações condicionais de status (`reserveIfAvailable`, `sellIfAvailable`).
-- Transações com `commit` / `rollback` e `release()` da conexão.
-
----
-
-## Stack utilizada
-
-| Camada    | Tecnologia                                       |
-| --------- | ------------------------------------------------ |
-| Runtime   | Node.js 24                                       |
-| Linguagem | TypeScript 5                                     |
-| API       | Express 5                                        |
-| Banco     | MySQL (mysql2)                                   |
-| Auth      | JWT + bcrypt                                     |
-| Testes    | Vitest + Supertest                               |
-| Qualidade | ESLint, Prettier, Husky, lint-staged, Commitlint |
-| Docs      | Swagger UI (`/docs`)                             |
+Detalhes completos: [docs/business-rules.md](docs/business-rules.md)
 
 ---
 
 ## Arquitetura
 
-O projeto segue Clean Architecture / Hexagonal de forma incremental:
+Evolução incremental para Clean Architecture / Hexagonal (Strangler Fig Pattern):
 
 ```text
 HTTP (Controllers)
@@ -136,20 +94,25 @@ Infra (Repositories)        ← adapters MySQL
 Models legados / MySQL
 ```
 
-Documentação detalhada: [docs/architecture.md](docs/architecture.md)
-
 **Módulos migrados:** Reservations, Purchases, Tickets, Events, Identidade (Auth/Users/Partners/Customers).
 
-**Limpeza concluída:** removidos services e facades duplicados (`auth-service`, `ticket-service`, `purchase-service`, `payment-service`, facades em `src/use-cases/` para reserva/compra/cancelamento).
+Detalhes: [docs/architecture.md](docs/architecture.md)
 
-**Padrões adotados hoje:**
+---
 
-- Controllers: entrada HTTP; delegam a factories (`getLoginUseCase`, `getCreatePurchaseUseCase`, etc.).
-- Application use cases: regras de negócio sem dependência direta de MySQL.
-- Infra: adapters MySQL sobre models legados + composition factories.
-- Services restantes: facades finos (`UserService`, `PartnerService`, `CustomerService`) e `EventService.getHistory`.
-- Models: persistência SQL encapsulada gradualmente por repositories.
-- Jobs: expiração automática de reservas a cada 60 segundos.
+## Stack
+
+| Camada    | Tecnologia                          |
+| --------- | ----------------------------------- |
+| Runtime   | Node.js 20+ (recomendado 24)        |
+| Linguagem | TypeScript 5                        |
+| API       | Express 5                           |
+| Banco     | MySQL 8 (mysql2)                    |
+| Auth      | JWT + bcrypt                        |
+| Testes    | Vitest + Supertest                  |
+| Qualidade | ESLint, Prettier, Husky, Commitlint |
+| Container | Docker + Docker Compose             |
+| Docs      | Swagger UI (`/docs`)                |
 
 ---
 
@@ -157,27 +120,26 @@ Documentação detalhada: [docs/architecture.md](docs/architecture.md)
 
 ```text
 src/
-├── domain/         # Entidades, erros, ports (repositories)
-├── application/    # Use cases (regras de negócio)
-├── infra/          # Repositories MySQL, JWT, factories
-├── shared/mappers/ # Domínio ↔ contratos HTTP
-├── controller/     # Rotas HTTP (Express)
-├── services/       # Facades finos + EventService.getHistory
-├── use-cases/      # 3 use cases legados (ticket-controller + job)
-├── models/         # Acesso ao MySQL (Active Record)
-├── jobs/           # Tarefas agendadas
-├── docs/           # Swagger
-├── types/          # Tipagens globais (Express)
-├── app.ts          # Configuração Express + middlewares
-├── server.ts       # Bootstrap da API + job de expiração
-└── database.ts     # Pool MySQL (singleton)
+├── domain/           # Entidades, erros, ports (repositories)
+├── application/      # Use cases (regras de negócio)
+├── infra/            # Repositories MySQL, JWT, factories
+├── shared/mappers/   # Domínio ↔ contratos HTTP
+├── controller/       # Rotas Express (entrada HTTP)
+├── services/         # Facades finos + EventService.getHistory
+├── use-cases/        # 3 use cases legados (ticket-controller + job)
+├── models/           # Acesso MySQL (Active Record)
+├── jobs/             # Job de expiração de reservas
+├── e2e/              # Testes E2E com MySQL real
+├── docs/             # Swagger
+├── app.ts            # Express + middleware JWT
+├── server.ts         # Bootstrap + job
+└── database.ts       # Pool MySQL
+
+docs/                 # Documentação técnica
+api.http              # Fluxo manual HTTP
+db.sql                # Schema MySQL
+.env.example          # Variáveis de ambiente
 ```
-
-Arquivos de apoio na raiz:
-
-- `api.http` — fluxo manual de testes
-- `db.sql` — schema do banco
-- `.env.example` — variáveis recomendadas (evolução futura)
 
 ---
 
@@ -185,43 +147,24 @@ Arquivos de apoio na raiz:
 
 ### 1. Cadastro e login
 
-1. `POST /partners/register` ou `POST /customers/register`
-2. `POST /auth/login` → retorna JWT
-3. Rotas protegidas exigem header `Authorization: Bearer <token>`
+`POST /partners/register` ou `/customers/register` → `POST /auth/login` → JWT
 
-### 2. Criação de evento
+### 2. Partner: evento + tickets
 
-1. Parceiro autenticado chama `POST /partners/events`
-2. Evento vinculado ao parceiro logado
+`POST /partners/events` → `POST /partners/events/:eventId/tickets`
 
-### 3. Criação de tickets
+### 3. Customer: reserva
 
-1. `POST /partners/events/:eventId/tickets`
-2. Body: `{ "num_tickets": 5, "price": 100 }`
-3. Tickets criados com status `available`
+`POST /partners/events/reservations` com `{ "ticket_ids": [...] }`
 
-### 4. Reserva
+### 4. Expiração automática
 
-1. Cliente autenticado chama `POST /partners/events/reservations`
-2. Body: `{ "ticket_ids": [1, 2] }`
-3. Tickets passam para `reserved` com expiração em 5 minutos
+Job `startReleaseExpiredReservationsJob()` — a cada 60s libera reservas vencidas.
 
-### 5. Expiração automática
+### 5. Customer: compra e cancelamento
 
-1. Job `startReleaseExpiredReservationsJob()` inicia com o servidor
-2. A cada 60 segundos executa `ReleaseExpiredReservationsUseCase`
-3. Reservas expiradas são canceladas e tickets liberados
-
-### 6. Compra
-
-1. Cliente autenticado chama `POST /partners/events/purchases`
-2. Body: `{ "ticket_ids": [3, 4], "card_token": "..." }`
-3. Tickets passam para `sold`, purchase criada como `paid`
-
-### 7. Cancelamento
-
-1. `POST /partners/events/purchases/:id/cancel`
-2. Tickets voltam para `available`, purchase → `cancelled`
+`POST /partners/events/purchases` com `{ "ticket_ids": [...], "card_token": "..." }`  
+`POST /partners/events/purchases/:id/cancel`
 
 ---
 
@@ -230,13 +173,13 @@ Arquivos de apoio na raiz:
 | Método | Rota                                    | Auth | Descrição                  |
 | ------ | --------------------------------------- | ---- | -------------------------- |
 | GET    | `/health`                               | Não  | Health check (API + MySQL) |
-| GET    | `/ready`                                | Não  | Readiness check            |
+| GET    | `/ready`                                | Não  | Readiness                  |
 | POST   | `/auth/login`                           | Não  | Login                      |
 | POST   | `/partners/register`                    | Não  | Cadastro parceiro          |
 | POST   | `/customers/register`                   | Não  | Cadastro cliente           |
 | GET    | `/events`                               | Não  | Listar eventos             |
 | POST   | `/partners/events`                      | Sim  | Criar evento               |
-| GET    | `/partners/events`                      | Sim  | Listar eventos do parceiro |
+| GET    | `/partners/events`                      | Sim  | Eventos do parceiro        |
 | GET    | `/partners/events/:eventId/history`     | Sim  | Histórico do evento        |
 | POST   | `/partners/events/:eventId/tickets`     | Sim  | Criar tickets              |
 | GET    | `/partners/events/:eventId/tickets`     | Sim  | Listar tickets             |
@@ -247,11 +190,11 @@ Arquivos de apoio na raiz:
 
 ---
 
-## Como instalar
+## Como rodar localmente
 
 ### Pré-requisitos
 
-- Node.js 20+ (recomendado 24) e pnpm 10+ **ou** Docker + Docker Compose
+- Node.js 20+ e pnpm 10+ **ou** Docker + Docker Compose
 
 ### Passos
 
@@ -260,222 +203,141 @@ git clone <url-do-repositorio>
 cd ticket-sales
 pnpm install
 cp .env.example .env
+docker compose up -d mysql    # MySQL na porta 3307
+pnpm dev                      # API em http://localhost:3000
 ```
 
 ---
 
-## Configuração do banco (MySQL)
+## Como rodar com Docker
 
-### Opção A — Docker Compose completo (API + MySQL) **recomendado**
-
-Sobe a API na porta **3000** e o MySQL na porta **3307** (host), com schema aplicado automaticamente.
+### API + MySQL (recomendado)
 
 ```bash
-# build e subir em background
 docker compose up --build -d
-
-# ver status (api aguarda mysql healthy)
 docker compose ps
-
-# logs da API
-docker compose logs -f api
-
-# logs do MySQL
-docker compose logs -f mysql
+curl http://localhost:3000/health
 ```
 
-Parar ambiente:
+| Serviço | Container          | Porta host |
+| ------- | ------------------ | ---------- |
+| API     | `ticket-sales-api` | 3000       |
+| MySQL   | `ticket-sales-db`  | 3307       |
 
-```bash
-docker compose down
-```
-
-Resetar volumes (apaga dados e reaplica `db.sql`):
+Resetar banco (reaplica `db.sql`):
 
 ```bash
 docker compose down -v
 docker compose up --build -d
 ```
 
-Acessar MySQL no container:
+Acessar MySQL:
 
 ```bash
 docker exec -it ticket-sales-db mysql -uroot -proot tickets
 ```
 
-Health check:
-
-```bash
-curl http://localhost:3000/health
-curl http://localhost:3000/ready
-```
-
-Resposta esperada com tudo saudável:
-
-```json
-{ "status": "ok", "database": "connected", "timestamp": "..." }
-{ "ready": true }
-```
-
-Testar fluxo completo: abra `api.http` e execute os passos (0 → 12) com a API em `http://localhost:3000`.
-
-| Serviço | Container          | Porta host | Porta interna |
-| ------- | ------------------ | ---------- | ------------- |
-| API     | `ticket-sales-api` | 3000       | 3000          |
-| MySQL   | `ticket-sales-db`  | 3307       | 3306          |
-
-A API no Docker usa `DB_HOST=mysql` e `DB_PORT=3306` (definido no `docker-compose.yml`).
-
-### Opção B — Apenas MySQL no Docker + API local (`pnpm dev`)
-
-Útil para desenvolvimento com hot reload.
-
-```bash
-# subir só o banco
-docker compose up -d mysql
-
-# na raiz do projeto
-cp .env.example .env   # DB_HOST=localhost, DB_PORT=3307
-pnpm install
-pnpm dev
-```
-
-### Opção C — MySQL instalado localmente
-
-```bash
-mysql -u root -p -P 3307 < db.sql
-cp .env.example .env
-pnpm dev
-```
-
-### Variáveis de ambiente
-
-Copie `.env.example` para `.env`:
-
-| Variável       | Local (`pnpm dev`) | Docker Compose (API) |
-| -------------- | ------------------ | -------------------- |
-| `PORT`         | `3000`             | `3000`               |
-| `DB_HOST`      | `localhost`        | `mysql`              |
-| `DB_PORT`      | `3307`             | `3306`               |
-| `DB_USER`      | `root`             | `root`               |
-| `DB_PASSWORD`  | `root`             | `root`               |
-| `DB_NAME`      | `tickets`          | `tickets`            |
-| `JWT_SECRET`   | altere em produção | altere em produção   |
-| `DB_HOST_PORT` | `3307`             | porta MySQL no host  |
-
-A conexão é configurada via `src/config/env.ts` (carrega `.env` com `dotenv`).
-
-> O script `db.sql` em `docker-entrypoint-initdb.d` só roda na **primeira** criação do volume `mysql_data`.
-
 ---
 
-## Configuração de ambiente (.env)
+## Configuração (.env)
 
 ```bash
 cp .env.example .env
 ```
 
-Variáveis principais: `PORT`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`. Ver tabela na seção de banco acima.
+| Variável      | Local (`pnpm dev`) | Docker Compose (API)   |
+| ------------- | ------------------ | ---------------------- |
+| `PORT`        | `3000`             | `3000`                 |
+| `HOST`        | `0.0.0.0`          | `0.0.0.0`              |
+| `DB_HOST`     | `localhost`        | `mysql`                |
+| `DB_PORT`     | `3307`             | `3306`                 |
+| `DB_USER`     | `root`             | `root`                 |
+| `DB_PASSWORD` | `root`             | `root`                 |
+| `DB_NAME`     | `tickets`          | `tickets`              |
+| `JWT_SECRET`  | altere em produção | valor forte no compose |
 
-O JWT usa `JWT_SECRET` do `.env` (padrão: `your_secret_key`). Em produção, use um valor forte.
+Em `NODE_ENV=production`, a API **falha no startup** se variáveis obrigatórias estiverem ausentes ou se `JWT_SECRET` for o padrão.
 
----
-
-## Como rodar a API
-
-```bash
-# desenvolvimento (hot reload)
-pnpm dev
-
-# build de produção
-pnpm build
-
-# executar build
-pnpm start
-```
-
-Servidor padrão: `http://localhost:3000`
+> `CORS_ORIGIN`, `RATE_LIMIT_*` estão documentados em `.env.example` como evolução futura — ainda não implementados.
 
 ---
 
 ## Como rodar testes
 
 ```bash
-# suíte unitária + integração (sem E2E; não requer MySQL)
+# Unitários + integração (sem MySQL)
 pnpm test
 
-# modo watch
-pnpm test:watch
-
-# cobertura (metas: statements/lines/functions ≥ 80%, branches ≥ 75%)
+# Cobertura (metas: statements/lines/functions ≥ 80%, branches ≥ 75%)
 pnpm test:coverage
 
-# E2E do fluxo principal (requer MySQL — ver pré-requisitos abaixo)
+# E2E — fluxo principal (requer MySQL)
 pnpm test:e2e
+
+# Qualidade
+pnpm lint
+pnpm build
+pnpm check    # format + lint + typecheck + test + build
 ```
 
-**Pré-requisitos para E2E:** MySQL acessível (ex.: `docker compose up -d mysql`, porta padrão **3307**), schema `db.sql` aplicado. Se o banco não estiver disponível, os testes E2E são ignorados automaticamente.
-
-A suíte padrão cobre controllers, application layer, use cases, repositories, models, jobs e fluxo HTTP integrado (mocks). O E2E valida o fluxo completo com HTTP real e MySQL.
+**E2E:** `docker compose up -d mysql` antes de `pnpm test:e2e`. Se MySQL indisponível, testes E2E são ignorados.
 
 ---
 
 ## Como testar com api.http
 
-1. Suba o ambiente: `docker compose up --build -d` **ou** `docker compose up -d mysql` + `pnpm dev`.
-2. Execute `pnpm dev`.
-3. Abra `api.http` no VS Code/Cursor com REST Client.
-4. Execute os blocos **na ordem numérica** (1 → 12).
-5. Após criar tickets, use `GET /partners/events/:eventId/tickets` para confirmar os IDs.
-6. Ajuste `ticket_ids` nas etapas de reserva/compra se necessário.
-7. Valide no MySQL usando as queries comentadas no final do arquivo.
+1. Suba o ambiente: `docker compose up -d` ou `docker compose up -d mysql` + `pnpm dev`
+2. Abra `api.http` no VS Code/Cursor (REST Client)
+3. Execute blocos **0 → 12** na ordem
+4. IDs de tickets são capturados automaticamente do passo 7
+5. Valide no MySQL com queries do passo 12
 
 ---
 
-## Comandos úteis
+## Como validar no MySQL
 
 ```bash
-docker compose up --build -d  # API + MySQL
-docker compose down           # parar
-docker compose down -v        # reset volumes + schema
-docker compose logs -f api    # logs da API
-pnpm dev                      # API local (MySQL no Docker ou local)
-pnpm test            # unitários + integração
-pnpm test:e2e        # fluxo principal (MySQL)
-pnpm test:coverage   # cobertura
-pnpm lint            # ESLint
-pnpm lint:fix        # ESLint com auto-fix
-pnpm format          # Prettier
-pnpm format:check    # validar formatação
-pnpm typecheck       # TypeScript
-pnpm fix             # lint:fix + format
-pnpm check           # pipeline local completa
-pnpm build           # compilar TypeScript
+docker exec -it ticket-sales-db mysql -uroot -proot tickets
+```
+
+```sql
+-- Status dos tickets
+SELECT id, event_id, status, price FROM tickets ORDER BY id;
+
+-- Histórico de transições
+SELECT ticket_id, from_status, to_status, changed_at
+FROM ticket_status_history ORDER BY changed_at DESC LIMIT 20;
+
+-- Reservas ativas
+SELECT id, ticket_id, status, expires_at FROM reservation_tickets ORDER BY id DESC;
+
+-- Compras
+SELECT id, customer_id, status, total_amount FROM purchases ORDER BY id DESC;
+
+-- Auditoria
+SELECT action, entity_type, entity_id, created_at
+FROM audit_logs ORDER BY created_at DESC LIMIT 20;
 ```
 
 ---
 
-## Deploy em cloud
+## Segurança (implementado)
 
-A API está pronta para deploy com **Docker** em Render, Railway ou serviços compatíveis.
+| Item                              | Status           |
+| --------------------------------- | ---------------- |
+| Senhas com bcrypt                 | ✅               |
+| JWT com expiração (1h)            | ✅               |
+| Middleware de autenticação        | ✅               |
+| Validação de env em produção      | ✅               |
+| Transações e integridade de dados | ✅               |
+| Helmet / CORS / Rate limiting     | 🔜 Próximo passo |
+| Logs estruturados (Pino/Winston)  | 🔜 Próximo passo |
 
-### Variáveis de ambiente (produção)
+---
 
-| Variável      | Obrigatória | Exemplo / descrição              |
-| ------------- | ----------- | -------------------------------- |
-| `NODE_ENV`    | Sim         | `production`                     |
-| `PORT`        | Sim         | `3000` (Render/Railway injetam)  |
-| `HOST`        | Sim         | `0.0.0.0`                        |
-| `DB_HOST`     | Sim         | host do MySQL gerenciado         |
-| `DB_PORT`     | Sim         | `3306`                           |
-| `DB_USER`     | Sim         | usuário do banco                 |
-| `DB_PASSWORD` | Sim         | senha forte                      |
-| `DB_NAME`     | Sim         | `tickets`                        |
-| `JWT_SECRET`  | Sim         | segredo forte (não use o padrão) |
+## Deploy
 
-Em `NODE_ENV=production`, a API **falha no startup** se alguma variável obrigatória estiver ausente ou se `JWT_SECRET` for o valor padrão.
-
-### Build e start (sem Docker)
+A API suporta deploy via **Docker** (Render, Railway, etc.).
 
 ```bash
 pnpm install --frozen-lockfile
@@ -483,111 +345,52 @@ pnpm build
 NODE_ENV=production pnpm start
 ```
 
-### Endpoints de operação
+Variáveis obrigatórias em produção: `NODE_ENV`, `PORT`, `HOST`, `DB_*`, `JWT_SECRET` (forte).
 
-| Endpoint      | Uso                             |
-| ------------- | ------------------------------- |
-| `GET /health` | Liveness + verificação do MySQL |
-| `GET /ready`  | Readiness (orquestradores)      |
-| `GET /docs`   | Swagger UI                      |
+Checklist pós-deploy:
 
-### Deploy no Render
-
-1. Crie um **PostgreSQL não** — use **MySQL** (Render MySQL ou banco externo).
-2. Aplique o schema: execute `db.sql` no banco (via cliente SQL ou shell).
-3. Conecte o repositório GitHub ao Render.
-4. Opção A — **Blueprint** (`render.yaml` na raiz):
-   ```bash
-   # No dashboard Render: New > Blueprint > conectar repo
-   ```
-5. Opção B — **Web Service manual**:
-   - **Runtime:** Docker
-   - **Dockerfile path:** `./Dockerfile`
-   - **Health Check Path:** `/health`
-   - Configure as variáveis da tabela acima (ou vincule o banco Render).
-6. Após deploy, valide:
-   ```bash
-   curl https://<sua-api>.onrender.com/health
-   curl https://<sua-api>.onrender.com/ready
-   ```
-
-### Deploy no Railway
-
-1. Crie um projeto e adicione **MySQL** (plugin/template).
-2. Adicione um serviço a partir do repositório (Dockerfile detectado automaticamente).
-3. Em **Variables**, configure:
-   - `NODE_ENV=production`
-   - `HOST=0.0.0.0`
-   - `JWT_SECRET=<gerar valor forte>`
-   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (referências do MySQL Railway)
-4. Aplique `db.sql` no MySQL (Railway Query ou cliente externo).
-5. Configure health check em **Settings** → path `/health`.
-6. Deploy e teste `https://<sua-api>.up.railway.app/health`.
-
-### Deploy com Docker (qualquer cloud)
-
-```bash
-docker build -t ticket-sales-api .
-docker run -p 3000:3000 \
-  -e NODE_ENV=production \
-  -e HOST=0.0.0.0 \
-  -e PORT=3000 \
-  -e JWT_SECRET=<segredo> \
-  -e DB_HOST=<host> \
-  -e DB_PORT=3306 \
-  -e DB_USER=<user> \
-  -e DB_PASSWORD=<password> \
-  -e DB_NAME=tickets \
-  ticket-sales-api
-```
-
-### Checklist pós-deploy
-
-- [ ] `GET /health` retorna `200` com `database: connected`
-- [ ] `GET /ready` retorna `{ "ready": true }`
-- [ ] `GET /docs` abre o Swagger
-- [ ] Login e fluxo principal funcionam (`api.http`)
+- [ ] `GET /health` → `200` com `database: connected`
+- [ ] `GET /ready` → `{ "ready": true }`
+- [ ] Schema `db.sql` aplicado
 - [ ] `JWT_SECRET` não é o valor padrão
-- [ ] Schema `db.sql` aplicado no banco de produção
 
 ---
 
-## Status atual do projeto
+## Status do projeto
 
-| Área                                  | Status                        |
-| ------------------------------------- | ----------------------------- |
-| CRUD de parceiros, clientes e eventos | Implementado                  |
-| Criação e listagem de tickets         | Implementado                  |
-| Reserva com expiração automática      | Implementado                  |
-| Compra e cancelamento                 | Implementado                  |
-| Controle de concorrência              | Implementado                  |
-| Histórico de status                   | Implementado                  |
-| Audit logs                            | Implementado                  |
-| Testes automatizados                  | Implementado                  |
-| Swagger                               | Básico (endpoints principais) |
-| Variáveis de ambiente                 | Implementado (`.env`)         |
-| Docker Compose (API + MySQL)          | Implementado                  |
-| Health / Readiness endpoints          | Implementado                  |
-| Deploy cloud (Docker + env)           | Implementado                  |
-| Deploy / CI                           | Parcial (sem pipeline CI)     |
+| Área                                   | Status  |
+| -------------------------------------- | ------- |
+| CRUD partners/customers/events/tickets | ✅      |
+| Reserva + expiração automática         | ✅      |
+| Compra + cancelamento                  | ✅      |
+| Concorrência (transações + FOR UPDATE) | ✅      |
+| Histórico + audit logs                 | ✅      |
+| Testes (unit/integration/E2E)          | ✅      |
+| Docker Compose                         | ✅      |
+| Clean Architecture (5 módulos)         | ✅      |
+| Deploy cloud (Docker)                  | ✅      |
+| CI/CD pipeline                         | 🔜      |
+| Helmet / CORS / Rate limit             | 🔜      |
+| Swagger completo                       | Parcial |
 
-**Maturidade:** projeto de portfólio **intermediário**, com fundamentos sólidos de backend e espaço claro para evolução em produção.
+**Maturidade:** portfólio **intermediário-avançado** — fundamentos sólidos de backend com caminho claro para produção.
 
 ---
 
-## Próximos passos técnicos
+## Próximos passos
 
-- Adicionar pipeline CI (lint + test + build)
-- Completar documentação Swagger com schemas de request/response
-- Testes de integração com MySQL real (Testcontainers)
-- Lock distribuído para job de expiração em multi-instância
-- Migrar `ReserveTicketUseCase` e `PurchaseTicketUseCase` em `ticket-controller`
+- Pipeline CI (lint + test + build)
+- Helmet, CORS e rate limiting
+- Logs estruturados
+- Unificar rotas legadas em `ticket-controller`
 - Migrar `EventService.getHistory` para application layer
-- Unificar rotas duplicadas de reserva/compra
+- Lock distribuído no job de expiração (multi-instância)
+- Testcontainers para integração com MySQL
+- Swagger com schemas completos
 
 ---
 
-## Diagrama de fluxo — compra
+## Diagrama — compra transacional
 
 ```mermaid
 sequenceDiagram
@@ -595,10 +398,10 @@ sequenceDiagram
     participant API
     participant MySQL
 
-    Cliente->>API: POST /purchases (ticket_ids)
+    Cliente->>API: POST /purchases (ticket_ids, card_token)
     API->>MySQL: BEGIN + SELECT FOR UPDATE
     API->>MySQL: UPDATE ticket SET sold WHERE available
-    API->>MySQL: INSERT purchase + purchase_tickets + history
+    API->>MySQL: INSERT purchase + purchase_tickets + history + audit
     API->>MySQL: COMMIT
     API-->>Cliente: 201 Created
 ```

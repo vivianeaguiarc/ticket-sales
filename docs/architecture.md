@@ -1,8 +1,129 @@
 # Arquitetura — Ticket Sales
 
-Este documento descreve a evolução arquitetural gradual do projeto, do modelo atual (MVC + services/use-cases) para uma arquitetura mais limpa, sem reescrita total.
+Este documento descreve a evolução arquitetural gradual do projeto, do modelo inicial (MVC + services/use-cases) para Clean Architecture / Hexagonal, sem reescrita total.
 
-## Arquitetura atual (legado)
+Documentos relacionados: [business-rules.md](business-rules.md) · [interview-guide.md](interview-guide.md)
+
+---
+
+## Visão geral
+
+| Fase        | Modelo                                              | Status atual        |
+| ----------- | --------------------------------------------------- | ------------------- |
+| **Inicial** | Controllers → Services/Use Cases → Models (SQL)     | Parcialmente legado |
+| **Alvo**    | Controllers → Factories → Use Cases → Repos (ports) | 5 módulos migrados  |
+
+A migração segue o **Strangler Fig Pattern**: novo código convive com o legado até validação completa por testes.
+
+---
+
+## Camadas
+
+### Domain (`src/domain/`)
+
+**Responsabilidade:** regras e conceitos puros do negócio, sem Express ou MySQL.
+
+| Conteúdo        | Exemplos                                             |
+| --------------- | ---------------------------------------------------- |
+| Entidades       | `Ticket`, `Reservation`, `Purchase`, `Event`, `User` |
+| Erros           | `TicketUnavailableError`, `PurchaseNotFoundError`    |
+| Ports           | `TicketRepository`, `PurchaseRepository`             |
+| Serviços (port) | `TokenService` (geração de JWT)                      |
+
+**Regra:** nenhum import de `mysql2`, `express` ou models legados.
+
+### Application (`src/application/use-cases/`)
+
+**Responsabilidade:** orquestrar fluxos de negócio usando apenas interfaces do domain.
+
+| Exemplos                   | O que faz                                  |
+| -------------------------- | ------------------------------------------ |
+| `CreateReservationUseCase` | Reserva transacional com histórico e audit |
+| `CreatePurchaseUseCase`    | Compra com `sellIfAvailable`               |
+| `CancelPurchaseUseCase`    | Restaura tickets e cancela purchase        |
+| `RegisterPartnerUseCase`   | User + Partner em transação                |
+
+**Regra:** depende de ports (`TransactionManager`, repositories); não conhece SQL.
+
+### Infra (`src/infra/`)
+
+**Responsabilidade:** implementar ports com tecnologia concreta (MySQL, JWT).
+
+| Subpasta        | Conteúdo                                       |
+| --------------- | ---------------------------------------------- |
+| `repositories/` | `MysqlTicketRepository`, adapters sobre models |
+| `database/`     | `MysqlTransactionManager`                      |
+| `services/`     | `JwtTokenService`                              |
+| `composition/`  | Factories — wiring de dependências             |
+
+**Regra:** única camada que importa `src/models/*` e `mysql2`.
+
+### Presentation (`src/controller/` — migração futura para `presentation/`)
+
+**Responsabilidade:** HTTP — parsing de request, status codes, mapeamento de erros.
+
+- Validação superficial (`ticket_ids`, `card_token`)
+- Autorização de perfil (partner vs customer)
+- Delegação a factories (`getCreatePurchaseUseCase()`)
+- Mappers (`shared/mappers`) para contrato JSON legado
+
+### Shared (`src/shared/mappers/`)
+
+**Responsabilidade:** conversão entre entidades de domínio e DTOs/models da API.
+
+Evita que controllers conheçam detalhes de serialização do legado.
+
+### Legado (em transição)
+
+| Pasta        | Papel atual                                    |
+| ------------ | ---------------------------------------------- |
+| `models/`    | Active Record — SQL encapsulado pelos adapters |
+| `services/`  | Facades finos + `EventService.getHistory`      |
+| `use-cases/` | 3 fluxos legados (ticket-controller + job)     |
+| `jobs/`      | Agendamento do job de expiração                |
+
+---
+
+## Motivo da migração incremental
+
+| Motivo                        | Benefício                                       |
+| ----------------------------- | ----------------------------------------------- |
+| Evitar big bang               | API continua funcionando a cada módulo migrado  |
+| Preservar contratos HTTP      | Mesmos endpoints, status e payloads             |
+| Testes como rede de segurança | Regressão a cada extração de use case           |
+| Reutilizar SQL existente      | Adapters sobre models; sem reescrita de queries |
+| Portfólio com narrativa clara | Demonstra evolução consciente, não só CRUD      |
+
+---
+
+## Decisões arquiteturais
+
+| Decisão                           | Justificativa                                                |
+| --------------------------------- | ------------------------------------------------------------ |
+| Ports como interfaces TypeScript  | Testabilidade; use cases mockam repos sem MySQL              |
+| `TransactionManager` como port    | Use case não conhece `PoolConnection`                        |
+| Factories em `infra/composition/` | Composition root único; controllers sem `new` de repos       |
+| Enums duplicados no domain        | Desacoplamento dos enums dos models legados                  |
+| Autorização no controller         | Padrão legado mantido; migração futura para middleware       |
+| Models legados preservados        | Risco baixo; adapters fazem cast seguro                      |
+| Ordem de rotas em `app.ts`        | `purchaseRoutes`/`reservationRoutes` antes de `ticketRoutes` |
+
+---
+
+## Trade-offs
+
+| Escolha                             | Pró                            | Contra                                    |
+| ----------------------------------- | ------------------------------ | ----------------------------------------- |
+| Migração incremental                | Entrega contínua, menos risco  | Código duplicado temporário               |
+| Adapters sobre Active Record        | Velocidade; SQL já testado     | Models ainda vazam conceitos SQL          |
+| JWT stateless                       | Simples; escala horizontal     | Sem revoke nativo; secret rotation manual |
+| Job in-process (setInterval)        | Zero infra extra               | Sem lock multi-instância                  |
+| `card_token` sem gateway            | Foco em domínio e concorrência | Pagamento não é produção-ready            |
+| Controllers fora de `presentation/` | Menos churn durante migração   | Estrutura de pastas híbrida               |
+
+---
+
+## Arquitetura inicial (legado)
 
 ```
 src/
