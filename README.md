@@ -103,20 +103,6 @@ Lista completa na seção [Endpoints](#endpoints-completos) abaixo.
 
 ---
 
-## Como explicar em entrevista
-
-> _"API de ticketing onde o diferencial é evitar venda duplicada com transações e locking pessimista no MySQL, com reservas que expiram, audit logs e migração incremental para Clean Architecture — coberta por testes unitários, integração e E2E."_
-
-Roteiro completo com perguntas frequentes: **[docs/interview-guide.md](docs/interview-guide.md)**
-
----
-
-## Texto para currículo
-
-> Desenvolvi uma API REST de venda de ingressos com Node.js, TypeScript, Express e MySQL, aplicando transações, controle de concorrência (`SELECT FOR UPDATE`), autenticação JWT, reservas com expiração automática, audit logs, testes automatizados (unitários, integração e E2E), Docker e evolução incremental para Clean Architecture.
-
----
-
 ## Checklist — validar o projeto
 
 ```bash
@@ -280,6 +266,9 @@ sequenceDiagram
 ## Autora
 
 **Viviane Aguiar** — Backend Developer · Node.js · TypeScript
+
+- LinkedIn: [linkedin.com/in/vivianeaguiarc](https://www.linkedin.com/in/vivianeaguiarc/)
+- Email: [vivianeaguiarc@outlook.com](mailto:vivianeaguiarc@outlook.com)
 
 ## Licença
 
