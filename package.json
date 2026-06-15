@@ -1,13 +1,13 @@
 {
   "name": "ticket-sales",
   "version": "1.0.0",
-  "description": "Ticket sales API with strong code quality setup.",
+  "description": "API REST para venda de ingressos com reservas, compras, cancelamentos e controle de concorrência.",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "clean": "rimraf dist",
     "build": "pnpm clean && tsc",
-    "start": "node dist/main/index.js",
+    "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

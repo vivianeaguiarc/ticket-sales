@@ -1,30 +1,43 @@
 ### =========================================================
-### 1. REGISTER PARTNER
+### Ticket Sales API — Fluxo feliz completo
+### Pré-requisitos:
+### 1. MySQL rodando (porta 3307 por padrão do projeto)
+### 2. Banco `tickets` criado e schema aplicado (db.sql)
+### 3. API em execução: pnpm dev
+### 4. Extensão REST Client (VS Code / Cursor) para executar as requests
+### =========================================================
+
+@baseUrl = http://localhost:3000
+
+### =========================================================
+### 1. CADASTRO DO PARCEIRO
+### Rota pública — POST /partners/register
 ### =========================================================
 
 ###
 # @name registerPartner
-POST http://localhost:3000/partners/register
+POST {{baseUrl}}/partners/register
 Content-Type: application/json
 
 {
-  "name": "Partner Final",
-  "email": "partner_final@test.com",
+  "name": "Partner Portfolio",
+  "email": "partner_portfolio@test.com",
   "password": "123456",
-  "company_name": "Final Company"
+  "company_name": "Portfolio Events"
 }
 
 ### =========================================================
-### 2. LOGIN PARTNER
+### 2. LOGIN DO PARCEIRO
+### Rota pública — POST /auth/login
 ### =========================================================
 
 ###
 # @name loginPartner
-POST http://localhost:3000/auth/login
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "partner_final@test.com",
+  "email": "partner_portfolio@test.com",
   "password": "123456"
 }
 
@@ -32,33 +45,35 @@ Content-Type: application/json
 @tokenPartner = {{loginPartner.response.body.token}}
 
 ### =========================================================
-### 3. REGISTER CUSTOMER
+### 3. CADASTRO DO CLIENTE
+### Rota pública — POST /customers/register
 ### =========================================================
 
 ###
 # @name registerCustomer
-POST http://localhost:3000/customers/register
+POST {{baseUrl}}/customers/register
 Content-Type: application/json
 
 {
-  "name": "Customer Final",
-  "email": "customer_final@test.com",
+  "name": "Customer Portfolio",
+  "email": "customer_portfolio@test.com",
   "password": "123456",
-  "address": "Rua Teste",
+  "address": "Rua Teste, 100",
   "phone": "11999999999"
 }
 
 ### =========================================================
-### 4. LOGIN CUSTOMER
+### 4. LOGIN DO CLIENTE
+### Rota pública — POST /auth/login
 ### =========================================================
 
 ###
 # @name loginCustomer
-POST http://localhost:3000/auth/login
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "customer_final@test.com",
+  "email": "customer_portfolio@test.com",
   "password": "123456"
 }
 
@@ -66,19 +81,21 @@ Content-Type: application/json
 @tokenCustomer = {{loginCustomer.response.body.token}}
 
 ### =========================================================
-### 5. CREATE EVENT
+### 5. CRIAR EVENTO (parceiro autenticado)
+### POST /partners/events
+### Esperado: 201
 ### =========================================================
 
 ###
 # @name createEvent
-POST http://localhost:3000/partners/events
+POST {{baseUrl}}/partners/events
 Content-Type: application/json
 Authorization: Bearer {{tokenPartner}}
 
 {
-  "name": "Evento Final",
-  "description": "Evento para fluxo final",
-  "date": "2027-08-01T10:00:00Z",
+  "name": "Show Portfolio",
+  "description": "Evento para demonstração do fluxo completo",
+  "date": "2027-08-01T10:00:00.000Z",
   "location": "São Paulo"
 }
 
@@ -86,12 +103,14 @@ Authorization: Bearer {{tokenPartner}}
 @eventId = {{createEvent.response.body.id}}
 
 ### =========================================================
-### 6. CREATE TICKETS
+### 6. CRIAR TICKETS EM LOTE (parceiro autenticado)
+### POST /partners/events/:eventId/tickets
+### Esperado: 204
 ### =========================================================
 
 ###
 # @name createTickets
-POST http://localhost:3000/partners/events/{{eventId}}/tickets
+POST {{baseUrl}}/partners/events/{{eventId}}/tickets
 Content-Type: application/json
 Authorization: Bearer {{tokenPartner}}
 
@@ -101,19 +120,34 @@ Authorization: Bearer {{tokenPartner}}
 }
 
 ### =========================================================
-### 7. LIST TICKETS NO BANCO
-### Rode no MySQL antes da reserva:
-### SELECT id, status FROM tickets ORDER BY id;
-### Se criou tudo do zero, use [1,2] na reserva e [3,4] na compra
+### 7. LISTAR TICKETS DO EVENTO
+### GET /partners/events/:eventId/tickets
+### Use os IDs retornados nas próximas etapas
 ### =========================================================
 
+###
+# @name listTickets
+GET {{baseUrl}}/partners/events/{{eventId}}/tickets
+Authorization: Bearer {{tokenPartner}}
+
 ### =========================================================
-### 8. RESERVAR TICKETS (SUCESSO)
+### 8. VALIDAÇÃO NO MYSQL (antes de reservar/comprar)
+### Ajuste os IDs conforme o retorno do passo 7
+### =========================================================
+
+# SELECT id, status, price FROM tickets WHERE event_id = <eventId> ORDER BY id;
+# Exemplo em banco limpo após criar 5 tickets: IDs 1..5, todos `available`
+
+### =========================================================
+### 9. RESERVAR TICKETS (cliente autenticado)
+### POST /partners/events/reservations
+### Ciclo: available -> reserved
+### Esperado: 201
 ### =========================================================
 
 ###
 # @name createReservation
-POST http://localhost:3000/partners/events/reservations
+POST {{baseUrl}}/partners/events/reservations
 Content-Type: application/json
 Authorization: Bearer {{tokenCustomer}}
 
@@ -122,27 +156,80 @@ Authorization: Bearer {{tokenCustomer}}
 }
 
 ### =========================================================
-### 9. COMPRAR OUTROS TICKETS (SUCESSO)
+### 10. COMPRAR OUTROS TICKETS (cliente autenticado)
+### POST /partners/events/purchases
+### Ciclo: available -> sold
+### Esperado: 201
 ### =========================================================
 
 ###
 # @name createPurchase
-POST http://localhost:3000/partners/events/purchases
+POST {{baseUrl}}/partners/events/purchases
 Content-Type: application/json
 Authorization: Bearer {{tokenCustomer}}
 
 {
   "ticket_ids": [3, 4],
-  "card_token": "card_token_test"
+  "card_token": "card_token_test_12345"
 }
 
 ###
 @purchaseId = {{createPurchase.response.body.id}}
 
 ### =========================================================
-### 10. CANCELAR COMPRA
+### 11. CANCELAR COMPRA
+### POST /partners/events/purchases/:id/cancel
+### Ciclo: sold -> available
+### Esperado: 200
 ### =========================================================
 
 ###
-POST http://localhost:3000/partners/events/purchases/{{purchaseId}}/cancel
+# @name cancelPurchase
+POST {{baseUrl}}/partners/events/purchases/{{purchaseId}}/cancel
 Authorization: Bearer {{tokenCustomer}}
+
+### =========================================================
+### 12. VALIDAÇÃO FINAL NO MYSQL
+### =========================================================
+
+# -- Tickets reservados
+# SELECT id, status FROM tickets WHERE id IN (1, 2);
+# -- Esperado após reserva: reserved
+# -- Esperado após expiração automática (job a cada 60s): available
+
+# -- Tickets comprados e cancelados
+# SELECT id, status FROM tickets WHERE id IN (3, 4);
+# -- Esperado após compra: sold
+# -- Esperado após cancelamento: available
+
+# -- Histórico de status
+# SELECT ticket_id, from_status, to_status, changed_at
+# FROM ticket_status_history
+# ORDER BY changed_at DESC;
+
+# -- Reservas
+# SELECT id, ticket_id, status, expires_at
+# FROM reservation_tickets
+# ORDER BY id DESC;
+
+# -- Compras
+# SELECT id, status, total_amount FROM purchases ORDER BY id DESC;
+
+### =========================================================
+### ROTAS PÚBLICAS ADICIONAIS
+### =========================================================
+
+###
+# @name listPublicEvents
+GET {{baseUrl}}/events
+
+###
+# @name getPublicEvent
+GET {{baseUrl}}/events/{{eventId}}
+
+### =========================================================
+### DOCUMENTAÇÃO INTERATIVA
+### Swagger UI disponível em /docs (estrutura básica)
+### =========================================================
+
+# GET {{baseUrl}}/docs
