@@ -122,26 +122,29 @@ Ambos executam `SELECT 1` no MySQL para validar conexão real.
 
 ## Arquitetura
 
-O projeto segue uma arquitetura em camadas, em evolução para separação mais clara de responsabilidades:
+O projeto segue uma arquitetura em camadas, em evolução gradual para Clean Architecture / Hexagonal:
 
 ```text
-HTTP (Controllers/Routes)
+HTTP (Controllers)
         ↓
-Application (Use Cases)
+Application (Use Cases)     ← ports (interfaces)
         ↓
-Services (regras e orquestração)
+Infra (Repositories)      ← adapters MySQL
         ↓
-Models (acesso a dados / MySQL)
-        ↓
-Jobs (tarefas agendadas)
+Models legados / MySQL
 ```
+
+Documentação detalhada da migração: [docs/architecture.md](docs/architecture.md)
+
+**Piloto concluído:** fluxo de criação de reserva (`CreateReservationUseCase`) com entidades de domínio, repositórios e transações desacoplados.
 
 **Padrões adotados hoje:**
 
 - Controllers: entrada HTTP, validação básica, status codes.
-- Use Cases: fluxos transacionais críticos (compra, reserva, cancelamento, expiração).
+- Application use cases: regras de negócio sem dependência direta de MySQL (módulo piloto: reservas).
+- Use cases legados (`src/use-cases/`): facades durante a transição.
 - Services: lógica de domínio e integrações (auth, pagamento simulado, tickets).
-- Models: queries SQL e entidades de persistência.
+- Models: queries SQL e entidades de persistência (encapsulados gradualmente por repositories).
 - Jobs: expiração automática de reservas a cada 60 segundos.
 
 ---
@@ -400,7 +403,7 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-Atualmente: **334 testes** cobrindo controllers, use cases, services, models, jobs e fluxo HTTP integrado.
+Atualmente: **341 testes** cobrindo controllers, use cases, application layer, repositories, models, jobs e fluxo HTTP integrado.
 
 ---
 

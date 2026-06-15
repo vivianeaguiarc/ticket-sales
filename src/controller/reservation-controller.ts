@@ -1,7 +1,8 @@
 import { Request, Response, Router } from 'express'
 
+import { getCreateReservationUseCase } from '../infra/composition/create-reservation-factory.js'
 import { CustomerService } from '../services/customer-service.js'
-import { CreateReservationUseCase } from '../use-cases/create-reservation-use-case.js'
+import { toReservationTicketModels } from '../shared/mappers/reservation-mapper.js'
 
 export const reservationRoutes = Router()
 
@@ -20,13 +21,13 @@ reservationRoutes.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'ticket_ids is required' })
     }
 
-    const reservations = await CreateReservationUseCase.execute({
-      customer_id: customer.id,
-      user_id: req.user!.id,
-      ticket_ids
+    const reservations = await getCreateReservationUseCase().execute({
+      customerId: customer.id,
+      userId: req.user!.id,
+      ticketIds: ticket_ids
     })
 
-    return res.status(201).json(reservations)
+    return res.status(201).json(toReservationTicketModels(reservations))
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'ticket_ids is required') {

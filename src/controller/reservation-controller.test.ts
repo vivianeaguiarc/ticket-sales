@@ -2,6 +2,8 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Reservation, ReservationStatus } from '../domain/entities/reservation.js'
+
 const mockFindByUserId = vi.fn()
 const mockExecute = vi.fn()
 
@@ -11,10 +13,10 @@ vi.mock('../services/customer-service.js', () => ({
   }
 }))
 
-vi.mock('../use-cases/create-reservation-use-case.js', () => ({
-  CreateReservationUseCase: {
+vi.mock('../infra/composition/create-reservation-factory.js', () => ({
+  getCreateReservationUseCase: () => ({
     execute: mockExecute
-  }
+  })
 }))
 
 describe('ReservationController', () => {
@@ -46,7 +48,13 @@ describe('ReservationController', () => {
 
   it('should return 201 on success', async () => {
     mockFindByUserId.mockResolvedValue({ id: 1 })
-    mockExecute.mockResolvedValue([{ id: 1 }, { id: 2 }])
+    const reservationDate = new Date('2027-06-15T11:55:00.000Z')
+    const expiresAt = new Date('2027-06-15T12:00:00.000Z')
+
+    mockExecute.mockResolvedValue([
+      new Reservation(1, 1, 1, reservationDate, expiresAt, ReservationStatus.reserved),
+      new Reservation(2, 1, 2, reservationDate, expiresAt, ReservationStatus.reserved)
+    ])
 
     const app = await makeApp()
 
@@ -55,12 +63,29 @@ describe('ReservationController', () => {
       .send({ ticket_ids: [1, 2] })
 
     expect(response.status).toBe(201)
-    expect(response.body).toEqual([{ id: 1 }, { id: 2 }])
+    expect(response.body).toEqual([
+      {
+        id: 1,
+        customer_id: 1,
+        ticket_id: 1,
+        reservation_date: reservationDate.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        status: ReservationStatus.reserved
+      },
+      {
+        id: 2,
+        customer_id: 1,
+        ticket_id: 2,
+        reservation_date: reservationDate.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        status: ReservationStatus.reserved
+      }
+    ])
     expect(mockFindByUserId).toHaveBeenCalledWith(1)
     expect(mockExecute).toHaveBeenCalledWith({
-      customer_id: 1,
-      user_id: 1,
-      ticket_ids: [1, 2]
+      customerId: 1,
+      userId: 1,
+      ticketIds: [1, 2]
     })
   })
 
