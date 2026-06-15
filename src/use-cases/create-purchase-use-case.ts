@@ -29,11 +29,15 @@ export class CreatePurchaseUseCase {
             ids: ticket_ids
           }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
 
       if (tickets.length !== ticket_ids.length) {
         throw new Error('Some tickets not found')
+      }
+
+      for (const ticket of tickets) {
+        await TicketModel.sellIfAvailable(ticket.id, { connection })
       }
 
       const total_amount = tickets.reduce((total, ticket) => {
@@ -57,8 +61,6 @@ export class CreatePurchaseUseCase {
           },
           { connection }
         )
-
-        await TicketModel.sellIfAvailable(ticket.id, { connection })
 
         await TicketStatusHistoryModel.create(
           {

@@ -428,6 +428,22 @@ describe('TicketModel', () => {
       expect(connectionExecuteMock).toHaveBeenCalledWith('SELECT * FROM tickets', [])
       expect(executeMock).not.toHaveBeenCalled()
     })
+
+    test('deve aplicar FOR UPDATE quando forUpdate estiver habilitado', async () => {
+      executeMock.mockResolvedValue([[]])
+
+      await TicketModel.findAll(
+        {
+          where: { ids: [1, 2] }
+        },
+        { forUpdate: true }
+      )
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM tickets WHERE id IN (?, ?) FOR UPDATE',
+        [1, 2]
+      )
+    })
   })
 
   describe('update', () => {
@@ -490,6 +506,33 @@ describe('TicketModel', () => {
       })
 
       await expect(ticket.update()).rejects.toThrow('Ticket not found')
+    })
+  })
+
+  describe('reserveIfAvailable', () => {
+    test('deve reservar ticket disponível com sucesso', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      await TicketModel.reserveIfAvailable(1)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+        [TicketStatus.reserved, 1, TicketStatus.available]
+      )
+    })
+
+    test('deve lançar erro quando ticket não estiver disponível', async () => {
+      executeMock
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([[{ id: 1, status: TicketStatus.reserved }]])
+
+      await expect(TicketModel.reserveIfAvailable(1)).rejects.toThrow('Ticket 1 is not available')
+    })
+
+    test('deve lançar erro quando ticket não existir', async () => {
+      executeMock.mockResolvedValueOnce([{ affectedRows: 0 }]).mockResolvedValueOnce([[]])
+
+      await expect(TicketModel.reserveIfAvailable(999)).rejects.toThrow('Ticket not found')
     })
   })
 

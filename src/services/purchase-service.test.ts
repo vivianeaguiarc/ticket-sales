@@ -203,7 +203,7 @@ describe('PurchaseService', () => {
         {
           where: { ids: [10, 11] }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
 
       expect(reserveIfAvailableMock).toHaveBeenCalledTimes(2)
@@ -327,7 +327,7 @@ describe('PurchaseService', () => {
         {
           where: { ids: [10, 11] }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
       expect(createPurchaseMock).not.toHaveBeenCalled()
       expect(paymentService.processPayment).not.toHaveBeenCalled()
@@ -379,7 +379,7 @@ describe('PurchaseService', () => {
         {
           where: { ids: [10, 11] }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
       expect(createPurchaseMock).not.toHaveBeenCalled()
       expect(paymentService.processPayment).not.toHaveBeenCalled()
@@ -442,7 +442,7 @@ describe('PurchaseService', () => {
         {
           where: { ids: [10, 11] }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
       expect(reserveIfAvailableMock).toHaveBeenCalledTimes(2)
       expect(createReservationMock).toHaveBeenCalledTimes(2)

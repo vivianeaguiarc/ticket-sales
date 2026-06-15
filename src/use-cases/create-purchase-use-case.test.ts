@@ -22,8 +22,13 @@ describe('CreatePurchaseUseCase', () => {
 
   const getConnectionMock = vi.fn()
 
+  let findAllMock: ReturnType<typeof vi.spyOn>
+  let sellIfAvailableMock: ReturnType<typeof vi.spyOn>
+  let createPurchaseMock: ReturnType<typeof vi.spyOn>
+  let createHistoryMock: ReturnType<typeof vi.spyOn>
+  let createPurchaseTicketMock: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
-    vi.restoreAllMocks()
     vi.clearAllMocks()
 
     beginTransactionMock.mockResolvedValue(undefined)
@@ -36,40 +41,37 @@ describe('CreatePurchaseUseCase', () => {
     vi.spyOn(Database, 'getInstance').mockReturnValue({
       getConnection: getConnectionMock
     } as unknown as ReturnType<typeof Database.getInstance>)
-  })
 
-  it('deve criar compra com sucesso', async () => {
-    vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
+    findAllMock = vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
       { id: 1, status: TicketStatus.available, price: 100 },
       { id: 2, status: TicketStatus.available, price: 100 }
     ] as never)
-
-    vi.spyOn(PurchaseModel, 'create').mockResolvedValue({ id: 10 } as never)
-
-    const sellIfAvailableSpy = vi.spyOn(TicketModel, 'sellIfAvailable').mockResolvedValue(undefined)
-
-    const historySpy = vi
-      .spyOn(TicketStatusHistoryModel, 'create')
-      .mockResolvedValue(undefined as never)
-
-    const purchaseTicketSpy = vi
+    sellIfAvailableMock = vi.spyOn(TicketModel, 'sellIfAvailable').mockResolvedValue(undefined)
+    createPurchaseMock = vi.spyOn(PurchaseModel, 'create').mockResolvedValue({ id: 10 } as never)
+    createHistoryMock = vi.spyOn(TicketStatusHistoryModel, 'create').mockResolvedValue({} as never)
+    createPurchaseTicketMock = vi
       .spyOn(PurchaseTicketModel, 'create')
-      .mockResolvedValue(undefined as never)
+      .mockResolvedValue({} as never)
+  })
 
+  it('deve comprar tickets disponíveis com sucesso', async () => {
     const result = await CreatePurchaseUseCase.execute({
       customer_id: 1,
       ticket_ids: [1, 2]
     })
 
-    expect(beginTransactionMock).toHaveBeenCalled()
-    expect(commitMock).toHaveBeenCalled()
     expect(result.id).toBe(10)
-
-    expect(purchaseTicketSpy).toHaveBeenCalledTimes(2)
-    expect(sellIfAvailableSpy).toHaveBeenCalledTimes(2)
-    expect(historySpy).toHaveBeenCalledTimes(2)
-    expect(sellIfAvailableSpy).toHaveBeenNthCalledWith(1, 1, { connection })
-    expect(sellIfAvailableSpy).toHaveBeenNthCalledWith(2, 2, { connection })
+    expect(findAllMock).toHaveBeenCalledWith(
+      { where: { ids: [1, 2] } },
+      { connection, forUpdate: true }
+    )
+    expect(sellIfAvailableMock).toHaveBeenCalledTimes(2)
+    expect(createPurchaseMock).toHaveBeenCalledTimes(1)
+    expect(createPurchaseTicketMock).toHaveBeenCalledTimes(2)
+    expect(createHistoryMock).toHaveBeenCalledTimes(2)
+    expect(commitMock).toHaveBeenCalled()
+    expect(rollbackMock).not.toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
   })
 
   it('deve lançar erro se ticket_ids estiver vazio', async () => {
@@ -82,9 +84,7 @@ describe('CreatePurchaseUseCase', () => {
   })
 
   it('deve lançar erro se ticket não for encontrado', async () => {
-    vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
-      { id: 1, status: TicketStatus.available, price: 100 }
-    ] as never)
+    findAllMock.mockResolvedValue([{ id: 1, status: TicketStatus.available, price: 100 }] as never)
 
     await expect(
       CreatePurchaseUseCase.execute({
@@ -93,20 +93,14 @@ describe('CreatePurchaseUseCase', () => {
       })
     ).rejects.toThrow('Some tickets not found')
 
+    expect(sellIfAvailableMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
   })
 
-  it('deve lançar erro se ticket não estiver disponível', async () => {
-    vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
-      { id: 1, status: TicketStatus.available, price: 100 }
-    ] as never)
-
-    vi.spyOn(PurchaseModel, 'create').mockResolvedValue({ id: 10 } as never)
-    vi.spyOn(PurchaseTicketModel, 'create').mockResolvedValue(undefined as never)
-    vi.spyOn(TicketModel, 'sellIfAvailable').mockRejectedValue(
-      new Error('Ticket 1 is not available')
-    )
+  it('deve lançar erro se ticket já estiver vendido ou reservado', async () => {
+    findAllMock.mockResolvedValue([{ id: 1, status: TicketStatus.available, price: 100 }] as never)
+    sellIfAvailableMock.mockRejectedValue(new Error('Ticket 1 is not available'))
 
     await expect(
       CreatePurchaseUseCase.execute({
@@ -115,12 +109,13 @@ describe('CreatePurchaseUseCase', () => {
       })
     ).rejects.toThrow('Ticket 1 is not available')
 
+    expect(createPurchaseMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
   })
 
   it('deve fazer rollback se ocorrer erro de banco', async () => {
-    vi.spyOn(TicketModel, 'findAll').mockRejectedValue(new Error('DB error'))
+    findAllMock.mockRejectedValue(new Error('DB error'))
 
     await expect(
       CreatePurchaseUseCase.execute({
@@ -132,5 +127,29 @@ describe('CreatePurchaseUseCase', () => {
     expect(rollbackMock).toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalled()
+  })
+
+  it('deve impedir compra simultânea quando sellIfAvailable falhar na segunda tentativa', async () => {
+    findAllMock.mockResolvedValue([
+      { id: 1, status: TicketStatus.available, price: 100 },
+      { id: 2, status: TicketStatus.available, price: 100 }
+    ] as never)
+
+    sellIfAvailableMock
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Ticket 2 is not available'))
+
+    await expect(
+      CreatePurchaseUseCase.execute({
+        customer_id: 1,
+        ticket_ids: [1, 2]
+      })
+    ).rejects.toThrow('Ticket 2 is not available')
+
+    expect(sellIfAvailableMock).toHaveBeenCalledTimes(2)
+    expect(createPurchaseMock).not.toHaveBeenCalled()
+    expect(createPurchaseTicketMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
   })
 })

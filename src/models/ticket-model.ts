@@ -123,7 +123,7 @@ export class TicketModel {
     filter?: {
       where?: { event_id?: number; ids?: number[]; status?: TicketStatus }
     },
-    options?: { connection?: PoolConnection }
+    options?: { connection?: PoolConnection; forUpdate?: boolean }
   ): Promise<TicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
     let query = 'SELECT * FROM tickets'
@@ -152,6 +152,10 @@ export class TicketModel {
       }
     }
 
+    if (options?.forUpdate) {
+      query += ' FOR UPDATE'
+    }
+
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
 
     return rows.map((row) => new TicketModel(row as TicketModel))
@@ -169,7 +173,13 @@ export class TicketModel {
     )
 
     if (result.affectedRows === 0) {
-      throw new Error('Ticket is no longer available')
+      const ticket = await TicketModel.findById(id, { connection: options?.connection })
+
+      if (!ticket) {
+        throw new Error('Ticket not found')
+      }
+
+      throw new Error(`Ticket ${id} is not available`)
     }
   }
 

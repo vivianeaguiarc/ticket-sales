@@ -245,7 +245,7 @@ describe('TicketController', () => {
     }
 
     findCustomerByUserIdMock.mockResolvedValue(customer)
-    reserveTicketExecuteMock.mockRejectedValue(new Error('Ticket is no longer available'))
+    reserveTicketExecuteMock.mockRejectedValue(new Error('Ticket 101 is not available'))
 
     const response = await request(app)
       .post('/partners/events/reservations')
@@ -255,7 +255,7 @@ describe('TicketController', () => {
 
     expect(response.status).toBe(409)
     expect(response.body).toEqual({
-      message: 'Ticket is no longer available'
+      message: 'Ticket 101 is not available'
     })
   })
 
@@ -331,7 +331,7 @@ describe('TicketController', () => {
     }
 
     findCustomerByUserIdMock.mockResolvedValue(customer)
-    purchaseTicketExecuteMock.mockRejectedValue(new Error('Ticket is no longer available'))
+    purchaseTicketExecuteMock.mockRejectedValue(new Error('Ticket 101 is not available'))
 
     const response = await request(app)
       .post('/partners/events/purchases')
@@ -341,7 +341,7 @@ describe('TicketController', () => {
 
     expect(response.status).toBe(409)
     expect(response.body).toEqual({
-      message: 'Ticket is no longer available'
+      message: 'Ticket 101 is not available'
     })
   })
 

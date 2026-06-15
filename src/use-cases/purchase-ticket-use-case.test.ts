@@ -196,14 +196,14 @@ describe('PurchaseTicketUseCase', () => {
   })
 
   test('deve fazer rollback se o ticket não estiver disponível', async () => {
-    reserveIfAvailableMock.mockRejectedValue(new Error('Ticket is no longer available'))
+    reserveIfAvailableMock.mockRejectedValue(new Error('Ticket 101 is not available'))
 
     await expect(
       PurchaseTicketUseCase.execute({
         customer_id: 5,
         ticket_ids: [101, 102]
       })
-    ).rejects.toThrow('Ticket is no longer available')
+    ).rejects.toThrow('Ticket 101 is not available')
 
     expect(beginTransactionMock).toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalled()

@@ -28,27 +28,21 @@ export class CreateReservationUseCase {
             ids: ticket_ids
           }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
 
       if (tickets.length !== ticket_ids.length) {
         throw new Error('Some tickets not found')
       }
 
-      for (const ticket of tickets) {
-        if (ticket.status !== TicketStatus.available) {
-          throw new Error(`Ticket ${ticket.id} is not available`)
-        }
-      }
-
       const reservations: ReservationTicketModel[] = []
 
-      for (const ticket of tickets) {
-        await TicketModel.markAsReserved(ticket.id, { connection })
+      for (const ticketId of ticket_ids) {
+        await TicketModel.reserveIfAvailable(ticketId, { connection })
 
         await TicketStatusHistoryModel.create(
           {
-            ticket_id: ticket.id,
+            ticket_id: ticketId,
             from_status: TicketStatus.available,
             to_status: TicketStatus.reserved
           },
@@ -58,7 +52,7 @@ export class CreateReservationUseCase {
         const reservation = await ReservationTicketModel.create(
           {
             customer_id,
-            ticket_id: ticket.id,
+            ticket_id: ticketId,
             status: ReservationStatus.reserved
           },
           { connection }

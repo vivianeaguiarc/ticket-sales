@@ -82,7 +82,7 @@ ticketRoutes.post('/reservations', async (req, res) => {
         return
       }
 
-      if (error.message === 'Ticket is no longer available') {
+      if (error.message.includes('is not available')) {
         res.status(409).json({ message: error.message })
         return
       }
@@ -122,7 +122,7 @@ ticketRoutes.post('/purchases', async (req, res) => {
       }
 
       if (
-        error.message === 'Ticket is no longer available' ||
+        error.message.includes('is not available') ||
         error.message === 'Ticket is not reserved'
       ) {
         res.status(409).json({ message: error.message })

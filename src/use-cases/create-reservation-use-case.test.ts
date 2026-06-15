@@ -6,89 +6,70 @@ import { TicketModel, TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
 import { CreateReservationUseCase } from './create-reservation-use-case.js'
 
-vi.mock('../database.js', () => ({
-  Database: {
-    getInstance: vi.fn()
-  }
-}))
-
-vi.mock('../models/ticket-model.js', () => ({
-  TicketModel: {
-    findAll: vi.fn(),
-    markAsReserved: vi.fn()
-  },
-  TicketStatus: {
-    available: 'available',
-    reserved: 'reserved'
-  }
-}))
-
-vi.mock('../models/reservation-ticket-model.js', () => ({
-  ReservationTicketModel: {
-    create: vi.fn()
-  },
-  ReservationStatus: {
-    reserved: 'reserved'
-  }
-}))
-
-vi.mock('../models/ticket-status-history-model.js', () => ({
-  TicketStatusHistoryModel: {
-    create: vi.fn()
-  }
-}))
-
 describe('CreateReservationUseCase', () => {
-  const mockConnection = {
-    beginTransaction: vi.fn(),
-    commit: vi.fn(),
-    rollback: vi.fn(),
-    release: vi.fn()
+  const beginTransactionMock = vi.fn()
+  const commitMock = vi.fn()
+  const rollbackMock = vi.fn()
+  const releaseMock = vi.fn()
+
+  const connection = {
+    beginTransaction: beginTransactionMock,
+    commit: commitMock,
+    rollback: rollbackMock,
+    release: releaseMock
   }
+
+  const getConnectionMock = vi.fn()
+  const findAllMock = vi.spyOn(TicketModel, 'findAll')
+  const reserveIfAvailableMock = vi.spyOn(TicketModel, 'reserveIfAvailable')
+  const createHistoryMock = vi.spyOn(TicketStatusHistoryModel, 'create')
+  const createReservationMock = vi.spyOn(ReservationTicketModel, 'create')
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(
-      Database.getInstance as unknown as { mockReturnValue: (value: unknown) => void }
-    ).mockReturnValue({
-      getConnection: vi.fn().mockResolvedValue(mockConnection)
-    })
-    ;(
-      TicketModel.markAsReserved as unknown as { mockResolvedValue: (value: unknown) => void }
-    ).mockResolvedValue(undefined)
-    ;(
-      TicketStatusHistoryModel.create as unknown as { mockResolvedValue: (value: unknown) => void }
-    ).mockResolvedValue(undefined)
-  })
 
-  it('should create reservation successfully', async () => {
-    ;(
-      TicketModel.findAll as unknown as { mockResolvedValue: (value: unknown) => void }
-    ).mockResolvedValue([
+    beginTransactionMock.mockResolvedValue(undefined)
+    commitMock.mockResolvedValue(undefined)
+    rollbackMock.mockResolvedValue(undefined)
+    releaseMock.mockResolvedValue(undefined)
+
+    getConnectionMock.mockResolvedValue(connection)
+
+    vi.spyOn(Database, 'getInstance').mockReturnValue({
+      getConnection: getConnectionMock
+    } as unknown as ReturnType<typeof Database.getInstance>)
+
+    findAllMock.mockResolvedValue([
       { id: 1, status: TicketStatus.available },
       { id: 2, status: TicketStatus.available }
-    ])
-    ;(
-      ReservationTicketModel.create as unknown as {
-        mockResolvedValueOnce: (value: unknown) => {
-          mockResolvedValueOnce: (value: unknown) => void
-        }
-      }
-    )
-      .mockResolvedValueOnce({ id: 1 })
-      .mockResolvedValueOnce({ id: 2 })
+    ] as never)
+    reserveIfAvailableMock.mockResolvedValue(undefined)
+    createHistoryMock.mockResolvedValue({} as never)
+    createReservationMock.mockResolvedValue({ id: 1 } as never)
+  })
 
+  it('deve reservar tickets disponíveis com sucesso', async () => {
     const result = await CreateReservationUseCase.execute({
       customer_id: 1,
       ticket_ids: [1, 2]
     })
 
     expect(result).toHaveLength(2)
-    expect(mockConnection.commit).toHaveBeenCalled()
-    expect(mockConnection.rollback).not.toHaveBeenCalled()
+    expect(findAllMock).toHaveBeenCalledWith(
+      { where: { ids: [1, 2] } },
+      { connection, forUpdate: true }
+    )
+    expect(reserveIfAvailableMock).toHaveBeenCalledTimes(2)
+    expect(reserveIfAvailableMock).toHaveBeenNthCalledWith(1, 1, { connection })
+    expect(reserveIfAvailableMock).toHaveBeenNthCalledWith(2, 2, { connection })
+    expect(createHistoryMock).toHaveBeenCalledTimes(2)
+    expect(createReservationMock).toHaveBeenCalledTimes(2)
+    expect(commitMock).toHaveBeenCalled()
+    expect(rollbackMock).not.toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
   })
 
-  it('should throw error if ticket_ids is empty', async () => {
+  it('deve lançar erro se ticket_ids estiver vazio', async () => {
     await expect(
       CreateReservationUseCase.execute({
         customer_id: 1,
@@ -97,10 +78,8 @@ describe('CreateReservationUseCase', () => {
     ).rejects.toThrow('ticket_ids is required')
   })
 
-  it('should throw error if ticket not found', async () => {
-    ;(
-      TicketModel.findAll as unknown as { mockResolvedValue: (value: unknown) => void }
-    ).mockResolvedValue([])
+  it('deve lançar erro se ticket não for encontrado', async () => {
+    findAllMock.mockResolvedValue([])
 
     await expect(
       CreateReservationUseCase.execute({
@@ -108,34 +87,61 @@ describe('CreateReservationUseCase', () => {
         ticket_ids: [1]
       })
     ).rejects.toThrow('Some tickets not found')
+
+    expect(reserveIfAvailableMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
   })
 
-  it('should throw error if ticket not available', async () => {
-    ;(
-      TicketModel.findAll as unknown as { mockResolvedValue: (value: unknown) => void }
-    ).mockResolvedValue([{ id: 1, status: TicketStatus.reserved }])
+  it('deve lançar erro se ticket não estiver disponível', async () => {
+    findAllMock.mockResolvedValue([{ id: 1, status: TicketStatus.available }] as never)
+    reserveIfAvailableMock.mockRejectedValue(new Error('Ticket 1 is not available'))
 
     await expect(
       CreateReservationUseCase.execute({
         customer_id: 1,
         ticket_ids: [1]
       })
-    ).rejects.toThrow('not available')
+    ).rejects.toThrow('Ticket 1 is not available')
+
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
   })
 
-  it('should rollback on error', async () => {
-    ;(
-      TicketModel.findAll as unknown as { mockRejectedValue: (value: unknown) => void }
-    ).mockRejectedValue(new Error('DB error'))
+  it('deve fazer rollback em erro de banco', async () => {
+    findAllMock.mockRejectedValue(new Error('DB error'))
 
     await expect(
       CreateReservationUseCase.execute({
         customer_id: 1,
         ticket_ids: [1]
       })
-    ).rejects.toThrow()
+    ).rejects.toThrow('DB error')
 
-    expect(mockConnection.rollback).toHaveBeenCalled()
-    expect(mockConnection.commit).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
+  })
+
+  it('deve impedir reserva simultânea quando reserveIfAvailable falhar na segunda tentativa', async () => {
+    findAllMock.mockResolvedValue([
+      { id: 1, status: TicketStatus.available },
+      { id: 2, status: TicketStatus.available }
+    ] as never)
+
+    reserveIfAvailableMock
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Ticket 2 is not available'))
+
+    await expect(
+      CreateReservationUseCase.execute({
+        customer_id: 1,
+        ticket_ids: [1, 2]
+      })
+    ).rejects.toThrow('Ticket 2 is not available')
+
+    expect(reserveIfAvailableMock).toHaveBeenCalledTimes(2)
+    expect(createReservationMock).toHaveBeenCalledTimes(1)
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
   })
 })

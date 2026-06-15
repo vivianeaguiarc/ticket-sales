@@ -37,7 +37,7 @@ export class PurchaseService {
         {
           where: { ids: data.ticketIds }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
 
       if (tickets.length !== data.ticketIds.length) {
