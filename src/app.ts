@@ -71,8 +71,8 @@ app.use('/auth', authRoutes)
 app.use('/partners', partnerRoutes)
 app.use('/customers', customerRoutes)
 app.use('/events', eventsRoutes)
-app.use('/partners/events', ticketRoutes)
-app.use('/partners/events/reservations', reservationRoutes) // ✅ CORREÇÃO
 app.use('/partners/events/purchases', purchaseRoutes)
+app.use('/partners/events/reservations', reservationRoutes)
+app.use('/partners/events', ticketRoutes)
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))

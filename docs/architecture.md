@@ -157,11 +157,11 @@ Factories (`create-reservation-factory`, `purchase-factory`, `ticket-factory`) i
 
 ### O que ainda está legado (Tickets)
 
-| Componente                                                              | Situação                                       |
-| ----------------------------------------------------------------------- | ---------------------------------------------- |
-| `ReserveTicketUseCase` / `PurchaseTicketUseCase` em `ticket-controller` | Não migrados; ainda acessam models diretamente |
-| `TicketModel` / `TicketStatusHistoryModel`                              | Encapsulados por adapters; SQL não reescrito   |
-| Rotas duplicadas reserva/compra em `app.ts`                             | Pendente unificação                            |
+| Componente                                                              | Situação                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------------ |
+| `ReserveTicketUseCase` / `PurchaseTicketUseCase` em `ticket-controller` | Não migrados; ainda acessam models diretamente   |
+| `TicketModel` / `TicketStatusHistoryModel`                              | Encapsulados por adapters; SQL não reescrito     |
+| Rotas duplicadas reserva/compra em `app.ts`                             | Ordem corrigida; unificação de handlers pendente |
 
 ### Fluxo após migração Tickets
 
@@ -385,11 +385,13 @@ src/
 
 ### Rotas duplicadas (mantidas por compatibilidade)
 
-| Fluxo        | Rota canônica (api.http)                     | Rota legada em ticket-controller                            |
-| ------------ | -------------------------------------------- | ----------------------------------------------------------- |
-| Reserva      | `POST /partners/events/reservations`         | `POST /partners/events/reservations` (mesmo prefix)         |
-| Compra       | `POST /partners/events/purchases`            | `POST /partners/events/purchases` (variante sem card_token) |
-| Cancelamento | `POST /partners/events/purchases/:id/cancel` | `DELETE /partners/events/purchases/:purchaseId`             |
+| Fluxo        | Rota canônica (api.http)                     | Rota legada em ticket-controller                |
+| ------------ | -------------------------------------------- | ----------------------------------------------- |
+| Reserva      | `POST /partners/events/reservations`         | variantes legadas no mesmo prefixo              |
+| Compra       | `POST /partners/events/purchases`            | variante sem `card_token` (legado)              |
+| Cancelamento | `POST /partners/events/purchases/:id/cancel` | `DELETE /partners/events/purchases/:purchaseId` |
+
+**Ordem de montagem em `app.ts`:** `purchaseRoutes` e `reservationRoutes` são registradas **antes** de `ticketRoutes` em `/partners/events`, para que compras e reservas canônicas não sejam interceptadas pelo `ticket-controller`.
 
 As rotas duplicadas permanecem até unificação planejada na fase 6–7.
 
@@ -415,7 +417,7 @@ Unificar fluxos duplicados em `ticket-controller`:
 
 - Migrar `ReserveTicketUseCase` para a application layer de reservas
 - Migrar `PurchaseTicketUseCase` para reutilizar `CreatePurchaseUseCase`
-- Resolver ordem de rotas em `app.ts` (`ticketRoutes` vs rotas dedicadas)
+- ~~Resolver ordem de rotas em `app.ts` (`ticketRoutes` vs rotas dedicadas)~~ ✅ (purchase/reservation antes de ticketRoutes)
 
 ## Como testar o módulo piloto
 

@@ -2,6 +2,8 @@ import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { Event } from '../domain/entities/event.js'
+import { Purchase, PurchaseStatus } from '../domain/entities/purchase.js'
+import { Reservation, ReservationStatus } from '../domain/entities/reservation.js'
 
 const state = {
   partnerUserId: 1,
@@ -21,8 +23,8 @@ const {
   authLoginMock,
   eventCreateMock,
   ticketCreateManyMock,
-  reserveTicketExecuteMock,
-  purchaseTicketExecuteMock,
+  createReservationExecuteMock,
+  createPurchaseExecuteMock,
   purchaseCancelMock,
   healthCheckMock
 } = vi.hoisted(() => ({
@@ -35,8 +37,8 @@ const {
   authLoginMock: vi.fn(),
   eventCreateMock: vi.fn(),
   ticketCreateManyMock: vi.fn(),
-  reserveTicketExecuteMock: vi.fn(),
-  purchaseTicketExecuteMock: vi.fn(),
+  createReservationExecuteMock: vi.fn(),
+  createPurchaseExecuteMock: vi.fn(),
   purchaseCancelMock: vi.fn(),
   healthCheckMock: vi.fn()
 }))
@@ -110,21 +112,15 @@ vi.mock('../infra/composition/ticket-factory.js', () => ({
   })
 }))
 
-vi.mock('../use-cases/reserve-ticket-use-case.js', () => ({
-  ReserveTicketUseCase: {
-    execute: reserveTicketExecuteMock
-  }
-}))
-
-vi.mock('../use-cases/purchase-ticket-use-case.js', () => ({
-  PurchaseTicketUseCase: {
-    execute: purchaseTicketExecuteMock
-  }
+vi.mock('../infra/composition/create-reservation-factory.js', () => ({
+  getCreateReservationUseCase: () => ({
+    execute: createReservationExecuteMock
+  })
 }))
 
 vi.mock('../infra/composition/purchase-factory.js', () => ({
   getCreatePurchaseUseCase: () => ({
-    execute: vi.fn()
+    execute: createPurchaseExecuteMock
   }),
   getCancelPurchaseUseCase: () => ({
     execute: purchaseCancelMock
@@ -173,8 +169,13 @@ describe('Full ticket sales flow (integration)', () => {
       )
     )
     ticketCreateManyMock.mockResolvedValue(undefined)
-    reserveTicketExecuteMock.mockResolvedValue([{ id: 1 }])
-    purchaseTicketExecuteMock.mockResolvedValue({ id: state.purchaseId })
+    createReservationExecuteMock.mockResolvedValue([
+      new Reservation(1, 1, 1, new Date(), new Date(), ReservationStatus.reserved),
+      new Reservation(2, 1, 2, new Date(), new Date(), ReservationStatus.reserved)
+    ])
+    createPurchaseExecuteMock.mockResolvedValue(
+      new Purchase(state.purchaseId, 1, new Date(), 200, PurchaseStatus.paid)
+    )
     purchaseCancelMock.mockResolvedValue(undefined)
   })
 
@@ -238,9 +239,9 @@ describe('Full ticket sales flow (integration)', () => {
     const purchase = await request(app)
       .post('/partners/events/purchases')
       .set(authHeader())
-      .send({ ticket_ids: [1, 2] })
+      .send({ ticket_ids: [1, 2], card_token: 'card_token_test' })
     expect(purchase.status).toBe(201)
-    expect(purchase.body).toEqual({ id: state.purchaseId })
+    expect(purchase.body.id).toBe(state.purchaseId)
 
     const cancel = await request(app)
       .post(`/partners/events/purchases/${state.purchaseId}/cancel`)
@@ -278,7 +279,6 @@ describe('Full ticket sales flow (integration)', () => {
 
   test('deve retornar 400 em reserva sem ticket_ids', async () => {
     state.currentUserId = state.customerUserId
-    reserveTicketExecuteMock.mockRejectedValue(new Error('At least one ticket id is required'))
 
     const response = await request(app)
       .post('/partners/events/reservations')
@@ -286,17 +286,17 @@ describe('Full ticket sales flow (integration)', () => {
       .send({ ticket_ids: [] })
 
     expect(response.status).toBe(400)
-    expect(response.body).toEqual({ message: 'At least one ticket id is required' })
+    expect(response.body).toEqual({ message: 'ticket_ids is required' })
   })
 
   test('deve retornar 409 em compra com ticket indisponível', async () => {
     state.currentUserId = state.customerUserId
-    purchaseTicketExecuteMock.mockRejectedValue(new Error('Ticket 1 is not available'))
+    createPurchaseExecuteMock.mockRejectedValue(new Error('Ticket 1 is not available'))
 
     const response = await request(app)
       .post('/partners/events/purchases')
       .set(authHeader())
-      .send({ ticket_ids: [1] })
+      .send({ ticket_ids: [1], card_token: 'card_token_test' })
 
     expect(response.status).toBe(409)
     expect(response.body).toEqual({ message: 'Ticket 1 is not available' })

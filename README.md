@@ -401,17 +401,22 @@ Servidor padrão: `http://localhost:3000`
 ## Como rodar testes
 
 ```bash
-# suíte completa
+# suíte unitária + integração (sem E2E; não requer MySQL)
 pnpm test
 
 # modo watch
 pnpm test:watch
 
-# cobertura
+# cobertura (metas: statements/lines/functions ≥ 80%, branches ≥ 75%)
 pnpm test:coverage
+
+# E2E do fluxo principal (requer MySQL — ver pré-requisitos abaixo)
+pnpm test:e2e
 ```
 
-Atualmente: **376 testes** cobrindo controllers, application layer, use cases, repositories, models, jobs e fluxo HTTP integrado.
+**Pré-requisitos para E2E:** MySQL acessível (ex.: `docker compose up -d mysql`, porta padrão **3307**), schema `db.sql` aplicado. Se o banco não estiver disponível, os testes E2E são ignorados automaticamente.
+
+A suíte padrão cobre controllers, application layer, use cases, repositories, models, jobs e fluxo HTTP integrado (mocks). O E2E valida o fluxo completo com HTTP real e MySQL.
 
 ---
 
@@ -435,7 +440,8 @@ docker compose down           # parar
 docker compose down -v        # reset volumes + schema
 docker compose logs -f api    # logs da API
 pnpm dev                      # API local (MySQL no Docker ou local)
-pnpm test            # testes
+pnpm test            # unitários + integração
+pnpm test:e2e        # fluxo principal (MySQL)
 pnpm test:coverage   # cobertura
 pnpm lint            # ESLint
 pnpm lint:fix        # ESLint com auto-fix
