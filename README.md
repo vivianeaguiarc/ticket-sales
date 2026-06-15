@@ -122,31 +122,33 @@ Ambos executam `SELECT 1` no MySQL para validar conexão real.
 
 ## Arquitetura
 
-O projeto segue uma arquitetura em camadas, em evolução gradual para Clean Architecture / Hexagonal:
+O projeto segue Clean Architecture / Hexagonal de forma incremental:
 
 ```text
 HTTP (Controllers)
         ↓
+Factories (composition root)
+        ↓
 Application (Use Cases)     ← ports (interfaces)
         ↓
-Infra (Repositories)      ← adapters MySQL
+Infra (Repositories)        ← adapters MySQL
         ↓
 Models legados / MySQL
 ```
 
-Documentação detalhada da migração: [docs/architecture.md](docs/architecture.md)
+Documentação detalhada: [docs/architecture.md](docs/architecture.md)
 
-**Piloto concluído:** fluxo de criação de reserva (`CreateReservationUseCase`) com entidades de domínio, repositórios e transações desacoplados.
+**Módulos migrados:** Reservations, Purchases, Tickets, Events, Identidade (Auth/Users/Partners/Customers).
 
-**Módulo Events migrado:** criação e consultas de eventos via Clean Architecture, com `EventRepository` compartilhado com Tickets. Detalhes em [docs/architecture.md](docs/architecture.md).
+**Limpeza concluída:** removidos services e facades duplicados (`auth-service`, `ticket-service`, `purchase-service`, `payment-service`, facades em `src/use-cases/` para reserva/compra/cancelamento).
 
 **Padrões adotados hoje:**
 
-- Controllers: entrada HTTP, validação básica, status codes.
-- Application use cases: regras de negócio sem dependência direta de MySQL (módulo piloto: reservas).
-- Use cases legados (`src/use-cases/`): facades durante a transição.
-- Services: lógica de domínio e integrações (auth, pagamento simulado, tickets).
-- Models: queries SQL e entidades de persistência (encapsulados gradualmente por repositories).
+- Controllers: entrada HTTP; delegam a factories (`getLoginUseCase`, `getCreatePurchaseUseCase`, etc.).
+- Application use cases: regras de negócio sem dependência direta de MySQL.
+- Infra: adapters MySQL sobre models legados + composition factories.
+- Services restantes: facades finos (`UserService`, `PartnerService`, `CustomerService`) e `EventService.getHistory`.
+- Models: persistência SQL encapsulada gradualmente por repositories.
 - Jobs: expiração automática de reservas a cada 60 segundos.
 
 ---
@@ -155,10 +157,14 @@ Documentação detalhada da migração: [docs/architecture.md](docs/architecture
 
 ```text
 src/
-├── controller/       # Rotas HTTP (Express)
-├── use-cases/      # Casos de uso transacionais
-├── services/       # Serviços de domínio
-├── models/         # Acesso ao MySQL
+├── domain/         # Entidades, erros, ports (repositories)
+├── application/    # Use cases (regras de negócio)
+├── infra/          # Repositories MySQL, JWT, factories
+├── shared/mappers/ # Domínio ↔ contratos HTTP
+├── controller/     # Rotas HTTP (Express)
+├── services/       # Facades finos + EventService.getHistory
+├── use-cases/      # 3 use cases legados (ticket-controller + job)
+├── models/         # Acesso ao MySQL (Active Record)
 ├── jobs/           # Tarefas agendadas
 ├── docs/           # Swagger
 ├── types/          # Tipagens globais (Express)
@@ -569,7 +575,9 @@ docker run -p 3000:3000 \
 - Completar documentação Swagger com schemas de request/response
 - Testes de integração com MySQL real (Testcontainers)
 - Lock distribuído para job de expiração em multi-instância
-- Pagamento real (hoje `PaymentService` é simulado no `PurchaseService`)
+- Migrar `ReserveTicketUseCase` e `PurchaseTicketUseCase` em `ticket-controller`
+- Migrar `EventService.getHistory` para application layer
+- Unificar rotas duplicadas de reserva/compra
 
 ---
 

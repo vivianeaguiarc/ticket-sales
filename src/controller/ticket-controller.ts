@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { getCancelPurchaseUseCase } from '../infra/composition/purchase-factory.js'
 import {
   getCreateTicketsUseCase,
   getGetEventTicketsUseCase,
@@ -8,7 +9,6 @@ import {
 import { CustomerService } from '../services/customer-service.js'
 import { PartnerService } from '../services/partner-service.js'
 import { toTicketModel, toTicketModels } from '../shared/mappers/ticket-mapper.js'
-import { CancelPurchaseUseCase } from '../use-cases/cancel-purchase-use-case.js'
 import { PurchaseTicketUseCase } from '../use-cases/purchase-ticket-use-case.js'
 import { ReserveTicketUseCase } from '../use-cases/reserve-ticket-use-case.js'
 
@@ -149,9 +149,9 @@ ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
   try {
     const { purchaseId } = req.params
 
-    await CancelPurchaseUseCase.execute({
-      purchase_id: +purchaseId,
-      user_id: req.user!.id
+    await getCancelPurchaseUseCase().execute({
+      purchaseId: +purchaseId,
+      userId: req.user!.id
     })
 
     res.status(204).send()

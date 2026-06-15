@@ -75,7 +75,6 @@ Fluxo escolhido: **criação de reserva** (`POST /partners/events/reservations` 
 | Infra       | `infra/database/mysql-transaction-manager.ts`          | Transações                                               |
 | Infra       | `infra/composition/create-reservation-factory.ts`      | Composition root                                         |
 | Shared      | `shared/mappers/reservation-mapper.ts`                 | Domínio → `ReservationTicketModel` (API)                 |
-| Legado      | `use-cases/create-reservation-use-case.ts`             | Facade que delega à application layer                    |
 
 ## Módulo migrado: Purchases
 
@@ -99,16 +98,12 @@ Fluxos migrados:
 | Infra       | `infra/repositories/mysql-purchase-ticket-repository.ts` | Adapter MySQL                           |
 | Infra       | `infra/composition/purchase-factory.ts`                  | Composition root                        |
 | Shared      | `shared/mappers/purchase-mapper.ts`                      | Domínio → `PurchaseModel` (API)         |
-| Legado      | `use-cases/create-purchase-use-case.ts`                  | Facade de criação                       |
-| Legado      | `use-cases/cancel-purchase-use-case.ts`                  | Facade de cancelamento                  |
 
 ### O que ainda está legado (Purchases)
 
 | Componente                     | Situação                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `PurchaseService.create`       | Fluxo alternativo com pagamento simulado; não migrado                              |
 | `PurchaseTicketUseCase`        | Rota em `ticket-controller` (`POST /partners/events/purchases`); duplicata parcial |
-| `purchase-ticket-service.ts`   | Arquivo legado excluído do build                                                   |
 | Models (`PurchaseModel`, etc.) | Encapsulados por adapters; SQL não reescrito                                       |
 
 ### Fluxo após migração Purchases
@@ -147,7 +142,6 @@ Fluxos migrados:
 | Infra       | `infra/repositories/mysql-event-repository.ts`        | Adapter de eventos                           |
 | Infra       | `infra/composition/ticket-factory.ts`                 | Composition root compartilhado               |
 | Shared      | `shared/mappers/ticket-mapper.ts`                     | Domínio → `TicketModel` (API)                |
-| Legado      | `services/ticket-service.ts`                          | Facade delegando à application layer         |
 
 ### Dependências com Reservations e Purchases
 
@@ -219,7 +213,7 @@ Fluxos migrados:
 | Infra       | `infra/repositories/mysql-event-repository.ts`         | Adapter MySQL completo                          |
 | Infra       | `infra/composition/event-factory.ts`                   | Composition root + `getSharedEventRepository()` |
 | Shared      | `shared/mappers/event-mapper.ts`                       | Domínio → `EventModel` (API)                    |
-| Legado      | `services/event-service.ts`                            | Facade; `getHistory` ainda legado               |
+| Legado      | `services/event-service.ts`                            | Apenas `getHistory` permanece legado            |
 
 ### Dependências com Tickets
 
@@ -273,25 +267,25 @@ A autorização permanece **no controller** (padrão legado):
 
 ### Componentes criados
 
-| Camada      | Arquivo                                                    | Responsabilidade                          |
-| ----------- | ---------------------------------------------------------- | ----------------------------------------- |
-| Domain      | `domain/entities/user.ts`, `partner.ts`, `customer.ts`     | Entidades puras                           |
-| Domain      | `domain/errors/identity-errors.ts`                         | Erros de credenciais, duplicidade, etc.   |
-| Domain      | `domain/repositories/user-repository.ts`                   | Port de usuários                          |
-| Domain      | `domain/repositories/partner-repository.ts`                | Port de partners                          |
-| Domain      | `domain/repositories/customer-repository.ts`               | Port de customers                         |
-| Domain      | `domain/services/token-service.ts`                         | Port de geração de JWT                    |
-| Application | `application/use-cases/login-use-case.ts`                  | Login sem MySQL direto                    |
-| Application | `application/use-cases/get-current-user-use-case.ts`       | Usuário autenticado por id                |
-| Application | `application/use-cases/register-partner-use-case.ts`       | Cadastro transacional partner             |
-| Application | `application/use-cases/register-customer-use-case.ts`      | Cadastro transacional customer            |
-| Infra       | `infra/repositories/mysql-user-repository.ts`              | Adapter MySQL + mapeamento ER_DUP_ENTRY   |
-| Infra       | `infra/repositories/mysql-partner-repository.ts`           | Adapter MySQL                             |
-| Infra       | `infra/repositories/mysql-customer-repository.ts`          | Adapter MySQL                             |
-| Infra       | `infra/services/jwt-token-service.ts`                      | Implementação JWT                         |
-| Infra       | `infra/composition/identity-factory.ts`                    | Composition root compartilhado            |
-| Shared      | `shared/mappers/user-mapper.ts`, `partner-mapper.ts`, etc. | Domínio → models legados (API/middleware) |
-| Legado      | `services/auth-service.ts`, `user-service.ts`, etc.        | Facades delegando à application layer     |
+| Camada      | Arquivo                                                                 | Responsabilidade                                 |
+| ----------- | ----------------------------------------------------------------------- | ------------------------------------------------ |
+| Domain      | `domain/entities/user.ts`, `partner.ts`, `customer.ts`                  | Entidades puras                                  |
+| Domain      | `domain/errors/identity-errors.ts`                                      | Erros de credenciais, duplicidade, etc.          |
+| Domain      | `domain/repositories/user-repository.ts`                                | Port de usuários                                 |
+| Domain      | `domain/repositories/partner-repository.ts`                             | Port de partners                                 |
+| Domain      | `domain/repositories/customer-repository.ts`                            | Port de customers                                |
+| Domain      | `domain/services/token-service.ts`                                      | Port de geração de JWT                           |
+| Application | `application/use-cases/login-use-case.ts`                               | Login sem MySQL direto                           |
+| Application | `application/use-cases/get-current-user-use-case.ts`                    | Usuário autenticado por id                       |
+| Application | `application/use-cases/register-partner-use-case.ts`                    | Cadastro transacional partner                    |
+| Application | `application/use-cases/register-customer-use-case.ts`                   | Cadastro transacional customer                   |
+| Infra       | `infra/repositories/mysql-user-repository.ts`                           | Adapter MySQL + mapeamento ER_DUP_ENTRY          |
+| Infra       | `infra/repositories/mysql-partner-repository.ts`                        | Adapter MySQL                                    |
+| Infra       | `infra/repositories/mysql-customer-repository.ts`                       | Adapter MySQL                                    |
+| Infra       | `infra/services/jwt-token-service.ts`                                   | Implementação JWT                                |
+| Infra       | `infra/composition/identity-factory.ts`                                 | Composition root compartilhado                   |
+| Shared      | `shared/mappers/user-mapper.ts`, `partner-mapper.ts`, etc.              | Domínio → models legados (API/middleware)        |
+| Legado      | `services/user-service.ts`, `partner-service.ts`, `customer-service.ts` | Facades finos para middleware e lookup de perfil |
 
 ### Responsabilidades das camadas (identidade)
 
@@ -341,8 +335,63 @@ HTTP Request
 
 - **TransactionManager como port**: use case não conhece `PoolConnection`
 - **Enums duplicados no domain**: desacoplamento do model legado; adapters fazem cast seguro
-- **Facade legado**: imports antigos (`src/use-cases/create-reservation-use-case.ts`) continuam funcionando
 - **Factory singleton**: `getCreateReservationUseCase()` centraliza wiring; resetável em testes
+
+## Limpeza pós-migração
+
+Após migrar Reservations, Purchases, Tickets, Events e Identidade, foi realizada auditoria e remoção de código morto.
+
+### Arquivos removidos
+
+| Arquivo                                    | Motivo                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| `services/auth-service.ts`                 | Substituído por `getLoginUseCase()` no controller                    |
+| `services/ticket-service.ts`               | Substituído por `ticket-factory`                                     |
+| `services/purchase-service.ts`             | Fluxo alternativo com pagamento simulado; sem consumidor em produção |
+| `services/payment-service.ts`              | Usado apenas por `PurchaseService` removido                          |
+| `services/purchase-ticket-service.ts`      | Órfão; já excluído do build                                          |
+| `use-cases/create-reservation-use-case.ts` | Facade duplicada; controllers usam factory                           |
+| `use-cases/create-purchase-use-case.ts`    | Facade duplicada                                                     |
+| `use-cases/cancel-purchase-use-case.ts`    | Facade duplicada; `ticket-controller` migrado para factory           |
+
+### Código enxugado (mantido)
+
+| Componente                                               | Situação após limpeza                               |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| `services/event-service.ts`                              | Apenas `getHistory` (subfluxo pendente de migração) |
+| `services/user-service.ts`                               | Facade fino para middleware JWT                     |
+| `services/partner-service.ts`                            | Apenas `findByUserId` (autorização de partner)      |
+| `services/customer-service.ts`                           | Apenas `findByUserId` (validação de perfil)         |
+| `services/health-service.ts`                             | Health/readiness                                    |
+| `src/use-cases/reserve-ticket-use-case.ts`               | Legado em `ticket-controller`                       |
+| `src/use-cases/purchase-ticket-use-case.ts`              | Legado em `ticket-controller`                       |
+| `src/use-cases/release-expired-reservations-use-case.ts` | Job de expiração                                    |
+| `src/models/*`                                           | Persistência encapsulada por adapters MySQL         |
+
+### Estrutura final adotada
+
+```text
+src/
+  domain/           → entities, errors, repositories (ports), services (TokenService)
+  application/      → use cases (regras de negócio)
+  infra/            → repositories MySQL, JWT, factories (composition root)
+  shared/mappers/   → domínio ↔ contratos HTTP legados
+  controller/       → rotas Express (entrada HTTP)
+  services/         → facades finos + EventService.getHistory
+  use-cases/        → 3 use cases legados (reserva/compra ticket + job)
+  models/           → Active Record (SQL), encapsulados por infra
+  jobs/             → expiração de reservas
+```
+
+### Rotas duplicadas (mantidas por compatibilidade)
+
+| Fluxo        | Rota canônica (api.http)                     | Rota legada em ticket-controller                            |
+| ------------ | -------------------------------------------- | ----------------------------------------------------------- |
+| Reserva      | `POST /partners/events/reservations`         | `POST /partners/events/reservations` (mesmo prefix)         |
+| Compra       | `POST /partners/events/purchases`            | `POST /partners/events/purchases` (variante sem card_token) |
+| Cancelamento | `POST /partners/events/purchases/:id/cancel` | `DELETE /partners/events/purchases/:purchaseId`             |
+
+As rotas duplicadas permanecem até unificação planejada na fase 6–7.
 
 ## Plano incremental de migração
 
@@ -356,9 +405,9 @@ HTTP Request
 | 6    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)      | 🔜 Próximo   |
 | 7    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)     | Pendente     |
 | 8    | `EventService.getHistory`                                    | Pendente     |
-| 9    | `PurchaseService.create` (pagamento simulado)                | Pendente     |
-| 10   | Jobs (expiração de reservas)                                 | Pendente     |
-| 11   | Mover controllers para `presentation/`                       | Pendente     |
+| 9    | Jobs (expiração de reservas)                                 | Pendente     |
+| 10   | Mover controllers para `presentation/`                       | Pendente     |
+| 11   | Limpeza de código legado pós-migração                        | ✅ Concluído |
 
 ### Próximo passo recomendado
 
@@ -372,7 +421,6 @@ Unificar fluxos duplicados em `ticket-controller`:
 
 ```bash
 pnpm test src/application/use-cases/create-reservation-use-case.test.ts
-pnpm test src/use-cases/create-reservation-use-case.test.ts
 pnpm test src/controller/reservation-controller.test.ts
 pnpm test src/infra/repositories/mysql-ticket-repository.test.ts
 ```

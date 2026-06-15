@@ -61,23 +61,14 @@ vi.mock('../services/health-service.js', () => ({
 
 vi.mock('../services/partner-service.js', () => ({
   PartnerService: class {
-    register = partnerRegisterMock
     findByUserId = partnerFindByUserIdMock
   }
 }))
 
 vi.mock('../services/customer-service.js', () => ({
   CustomerService: class {
-    register = customerRegisterMock
     findByUserId = customerFindByUserIdMock
   }
-}))
-
-vi.mock('../services/auth-service.js', () => ({
-  AuthService: class {
-    login = authLoginMock
-  },
-  InvalidCredentialsError: class extends Error {}
 }))
 
 vi.mock('../infra/composition/identity-factory.js', () => ({
@@ -105,12 +96,6 @@ vi.mock('../infra/composition/event-factory.js', () => ({
   getGetEventsUseCase: () => ({
     execute: vi.fn()
   })
-}))
-
-vi.mock('../services/ticket-service.js', () => ({
-  TicketService: class {
-    createMany = ticketCreateManyMock
-  }
 }))
 
 vi.mock('../infra/composition/ticket-factory.js', () => ({
@@ -144,10 +129,6 @@ vi.mock('../infra/composition/purchase-factory.js', () => ({
   getCancelPurchaseUseCase: () => ({
     execute: purchaseCancelMock
   })
-}))
-
-vi.mock('../services/payment-service.js', () => ({
-  PaymentService: class {}
 }))
 
 import { app } from '../app.js'

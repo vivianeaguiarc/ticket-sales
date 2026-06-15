@@ -1,79 +1,20 @@
-import { beforeEach, describe, expect, type Mock, test, vi } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const {
-  beginTransactionMock,
-  commitMock,
-  rollbackMock,
-  releaseMock,
-  getConnectionMock,
-  createEventMock,
-  createAuditLogMock,
-  findStatusHistoryByEventIdMock,
-  findAuditLogsByEventIdMock
-} = vi.hoisted(() => {
+const { findStatusHistoryByEventIdMock, findAuditLogsByEventIdMock } = vi.hoisted(() => {
   return {
-    beginTransactionMock: vi.fn(),
-    commitMock: vi.fn(),
-    rollbackMock: vi.fn(),
-    releaseMock: vi.fn(),
-    getConnectionMock: vi.fn(),
-    createEventMock: vi.fn(),
-    createAuditLogMock: vi.fn(),
     findStatusHistoryByEventIdMock: vi.fn(),
     findAuditLogsByEventIdMock: vi.fn()
   }
 })
 
-const connection = {
-  beginTransaction: beginTransactionMock,
-  commit: commitMock,
-  rollback: rollbackMock,
-  release: releaseMock
-}
-
-vi.mock('../database.js', () => ({
-  Database: {
-    getInstance: vi.fn(() => ({
-      getConnection: getConnectionMock
-    }))
-  }
-}))
-
-vi.mock('../models/event-model.js', () => {
-  class EventModelMock {
-    id: number
-    partner_id: number
-    name: string
-    description: string | null
-    date: Date
-    location: string
-    created_at: Date
-
-    constructor(data: Partial<EventModelMock> = {}) {
-      Object.assign(this, data)
-    }
-
-    static create = createEventMock
-    static findAll = vi.fn()
-    static findById = vi.fn()
-  }
-
-  return {
-    EventModel: EventModelMock
-  }
-})
-
 vi.mock('../models/audit-log-model.js', () => ({
   AuditAction: {
-    EVENT_CREATED: 'EVENT_CREATED',
     PURCHASE_CREATED: 'PURCHASE_CREATED'
   },
   AuditEntityType: {
-    event: 'event',
     purchase: 'purchase'
   },
   AuditLogModel: {
-    create: createAuditLogMock,
     findByEventId: findAuditLogsByEventIdMock
   }
 }))
@@ -92,7 +33,6 @@ vi.mock('../models/ticket-model.js', () => ({
   }
 }))
 
-import { EventModel } from '../models/event-model.js'
 import { EventService } from './event-service.js'
 
 describe('EventService', () => {
@@ -100,131 +40,6 @@ describe('EventService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    beginTransactionMock.mockResolvedValue(undefined)
-    commitMock.mockResolvedValue(undefined)
-    rollbackMock.mockResolvedValue(undefined)
-    releaseMock.mockResolvedValue(undefined)
-    getConnectionMock.mockResolvedValue(connection)
-    createAuditLogMock.mockResolvedValue({})
-  })
-
-  describe('create', () => {
-    test('deve criar um evento com audit log na mesma transação', async () => {
-      const input = {
-        name: 'Evento Teste',
-        description: 'Descrição teste',
-        date: new Date(),
-        location: 'São Paulo',
-        partnerId: 1,
-        userId: 5
-      }
-
-      createEventMock.mockResolvedValue({
-        id: 10,
-        partner_id: input.partnerId,
-        name: input.name,
-        description: input.description,
-        date: input.date,
-        location: input.location,
-        created_at: new Date()
-      })
-
-      const result = await eventService.create(input)
-
-      expect(beginTransactionMock).toHaveBeenCalled()
-      expect(EventModel.create).toHaveBeenCalledWith(
-        {
-          partner_id: input.partnerId,
-          name: input.name,
-          description: input.description,
-          date: input.date,
-          location: input.location
-        },
-        { connection }
-      )
-      expect(createAuditLogMock).toHaveBeenCalledWith(
-        {
-          user_id: 5,
-          action: 'EVENT_CREATED',
-          entity_type: 'event',
-          entity_id: 10,
-          old_data: null,
-          new_data: {
-            partner_id: input.partnerId,
-            name: input.name,
-            description: input.description,
-            date: input.date,
-            location: input.location
-          }
-        },
-        { connection }
-      )
-      expect(commitMock).toHaveBeenCalled()
-      expect(rollbackMock).not.toHaveBeenCalled()
-      expect(releaseMock).toHaveBeenCalled()
-
-      expect(result).toMatchObject({
-        id: 10,
-        partner_id: input.partnerId,
-        name: input.name,
-        description: input.description,
-        location: input.location
-      })
-    })
-
-    test('deve fazer rollback se audit log falhar', async () => {
-      const input = {
-        name: 'Evento Teste',
-        description: null as string | null,
-        date: new Date(),
-        location: 'Rio de Janeiro',
-        partnerId: 2,
-        userId: 3
-      }
-
-      ;(EventModel.create as Mock).mockResolvedValue({
-        id: 1,
-        date: input.date,
-        created_at: new Date()
-      })
-      createAuditLogMock.mockRejectedValue(new Error('Audit log failed'))
-
-      await expect(eventService.create(input)).rejects.toThrow('Audit log failed')
-
-      expect(rollbackMock).toHaveBeenCalled()
-      expect(commitMock).not.toHaveBeenCalled()
-      expect(releaseMock).toHaveBeenCalled()
-    })
-  })
-
-  describe('findAll', () => {
-    test('deve retornar eventos filtrando por partnerId', async () => {
-      const mockEvents = [{ id: 1 }, { id: 2 }]
-
-      ;(EventModel.findAll as Mock).mockResolvedValue(mockEvents)
-
-      const result = await eventService.findAll(1)
-
-      expect(EventModel.findAll).toHaveBeenCalledWith({
-        where: { partner_id: 1 }
-      })
-
-      expect(result).toEqual(mockEvents)
-    })
-  })
-
-  describe('findById', () => {
-    test('deve retornar um evento pelo id', async () => {
-      const mockEvent = { id: 99 }
-
-      ;(EventModel.findById as Mock).mockResolvedValue(mockEvent)
-
-      const result = await eventService.findById(99)
-
-      expect(EventModel.findById).toHaveBeenCalledWith(99)
-      expect(result).toEqual(mockEvent)
-    })
   })
 
   describe('getHistory', () => {

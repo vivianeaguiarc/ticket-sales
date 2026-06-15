@@ -1,13 +1,6 @@
-import {
-  getCreateEventUseCase,
-  getGetEventByIdUseCase,
-  getGetEventsUseCase,
-  getGetPartnerEventsUseCase
-} from '../infra/composition/event-factory.js'
 import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
-import { toEventModel, toEventModels } from '../shared/mappers/event-mapper.js'
 
 export type EventHistoryTicketStatusItem = {
   type: 'ticket_status_history'
@@ -28,48 +21,9 @@ export type EventHistoryAuditLogItem = {
 export type EventHistoryItem = EventHistoryTicketStatusItem | EventHistoryAuditLogItem
 
 /**
- * Facade legado que delega operações principais para a application layer.
- * getHistory permanece no service até migração futura do subfluxo de histórico.
+ * Serviço legado mantido apenas para getHistory até migração do subfluxo de histórico.
  */
 export class EventService {
-  async create(data: {
-    name: string
-    description: string | null
-    date: Date
-    location: string
-    partnerId: number
-    userId: number
-  }) {
-    const event = await getCreateEventUseCase().execute({
-      partnerId: data.partnerId,
-      userId: data.userId,
-      name: data.name,
-      description: data.description,
-      date: data.date,
-      location: data.location
-    })
-
-    return toEventModel(event)
-  }
-
-  async findAll(partnerId?: number) {
-    if (partnerId !== undefined) {
-      const events = await getGetPartnerEventsUseCase().execute({ partnerId })
-
-      return toEventModels(events)
-    }
-
-    const events = await getGetEventsUseCase().execute()
-
-    return toEventModels(events)
-  }
-
-  async findById(eventId: number) {
-    const event = await getGetEventByIdUseCase().execute({ eventId })
-
-    return event ? toEventModel(event) : null
-  }
-
   async getHistory(eventId: number): Promise<EventHistoryItem[]> {
     const [statusHistory, auditLogs] = await Promise.all([
       TicketStatusHistoryModel.findByEventId(eventId),

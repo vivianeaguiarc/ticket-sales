@@ -72,11 +72,11 @@ vi.mock('../use-cases/purchase-ticket-use-case.js', () => {
   }
 })
 
-vi.mock('../use-cases/cancel-purchase-use-case.js', () => {
+vi.mock('../infra/composition/purchase-factory.js', () => {
   return {
-    CancelPurchaseUseCase: {
+    getCancelPurchaseUseCase: () => ({
       execute: cancelPurchaseExecuteMock
-    }
+    })
   }
 })
 
@@ -386,8 +386,8 @@ describe('TicketController', () => {
     expect(response.status).toBe(204)
     expect(response.text).toBe('')
     expect(cancelPurchaseExecuteMock).toHaveBeenCalledWith({
-      purchase_id: 10,
-      user_id: 1
+      purchaseId: 10,
+      userId: 1
     })
   })
 

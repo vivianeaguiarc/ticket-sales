@@ -11,33 +11,22 @@ export const purchaseRoutes = Router()
 
 purchaseRoutes.post('/', async (req: Request, res: Response) => {
   try {
-    console.log('🟡 [purchaseRoutes.create] body recebido:', req.body)
-    console.log('🟡 [purchaseRoutes.create] req.user:', req.user)
-
     const customerService = new CustomerService()
     const customer = await customerService.findByUserId(req.user!.id)
 
-    console.log('🟢 [purchaseRoutes.create] customer encontrado:', customer)
-
     if (!customer) {
-      console.log('🔴 [purchaseRoutes.create] usuário autenticado não é customer')
       res.status(400).json({ message: 'User needs be a customer' })
       return
     }
 
     const { ticket_ids, card_token } = req.body
 
-    console.log('🟡 [purchaseRoutes.create] ticket_ids:', ticket_ids)
-    console.log('🟡 [purchaseRoutes.create] card_token:', card_token)
-
     if (!Array.isArray(ticket_ids) || ticket_ids.length === 0) {
-      console.log('🔴 [purchaseRoutes.create] ticket_ids inválido')
       res.status(400).json({ message: 'ticket_ids is required' })
       return
     }
 
     if (!card_token) {
-      console.log('🔴 [purchaseRoutes.create] card_token ausente')
       res.status(400).json({ message: 'card_token is required' })
       return
     }
@@ -48,12 +37,8 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
       ticketIds: ticket_ids
     })
 
-    console.log('🟢 [purchaseRoutes.create] purchase criada com sucesso:', purchase)
-
     res.status(201).json(toPurchaseModel(purchase))
   } catch (error) {
-    console.error('🔴 [purchaseRoutes.create] erro completo:', error)
-
     if (error instanceof Error) {
       if (error.message === 'ticket_ids is required') {
         res.status(400).json({ message: error.message })
@@ -77,19 +62,13 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
 
 purchaseRoutes.post('/:id/cancel', async (req: Request, res: Response) => {
   try {
-    console.log('🟡 [purchaseRoutes.cancel] id recebido:', req.params.id)
-
     await getCancelPurchaseUseCase().execute({
       purchaseId: Number(req.params.id),
       userId: req.user!.id
     })
 
-    console.log('🟢 [purchaseRoutes.cancel] compra cancelada com sucesso')
-
     res.status(200).json({ message: 'Purchase cancelled successfully' })
   } catch (error) {
-    console.error('🔴 [purchaseRoutes.cancel] erro completo:', error)
-
     if (error instanceof Error) {
       if (error.message === 'Purchase not found') {
         res.status(404).json({ message: error.message })
