@@ -26,6 +26,8 @@ RUN pnpm prune --prod --ignore-scripts
 FROM base AS production
 
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
 
 COPY package.json pnpm-lock.yaml ./
 COPY --from=prod-deps /app/node_modules ./node_modules

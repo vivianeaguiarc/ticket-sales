@@ -400,7 +400,7 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-Atualmente: **290 testes** cobrindo controllers, use cases, services, models e jobs.
+Atualmente: **312 testes** cobrindo controllers, use cases, services, models e jobs.
 
 ---
 
@@ -438,6 +438,103 @@ pnpm build           # compilar TypeScript
 
 ---
 
+## Deploy em cloud
+
+A API está pronta para deploy com **Docker** em Render, Railway ou serviços compatíveis.
+
+### Variáveis de ambiente (produção)
+
+| Variável      | Obrigatória | Exemplo / descrição              |
+| ------------- | ----------- | -------------------------------- |
+| `NODE_ENV`    | Sim         | `production`                     |
+| `PORT`        | Sim         | `3000` (Render/Railway injetam)  |
+| `HOST`        | Sim         | `0.0.0.0`                        |
+| `DB_HOST`     | Sim         | host do MySQL gerenciado         |
+| `DB_PORT`     | Sim         | `3306`                           |
+| `DB_USER`     | Sim         | usuário do banco                 |
+| `DB_PASSWORD` | Sim         | senha forte                      |
+| `DB_NAME`     | Sim         | `tickets`                        |
+| `JWT_SECRET`  | Sim         | segredo forte (não use o padrão) |
+
+Em `NODE_ENV=production`, a API **falha no startup** se alguma variável obrigatória estiver ausente ou se `JWT_SECRET` for o valor padrão.
+
+### Build e start (sem Docker)
+
+```bash
+pnpm install --frozen-lockfile
+pnpm build
+NODE_ENV=production pnpm start
+```
+
+### Endpoints de operação
+
+| Endpoint      | Uso                             |
+| ------------- | ------------------------------- |
+| `GET /health` | Liveness + verificação do MySQL |
+| `GET /ready`  | Readiness (orquestradores)      |
+| `GET /docs`   | Swagger UI                      |
+
+### Deploy no Render
+
+1. Crie um **PostgreSQL não** — use **MySQL** (Render MySQL ou banco externo).
+2. Aplique o schema: execute `db.sql` no banco (via cliente SQL ou shell).
+3. Conecte o repositório GitHub ao Render.
+4. Opção A — **Blueprint** (`render.yaml` na raiz):
+   ```bash
+   # No dashboard Render: New > Blueprint > conectar repo
+   ```
+5. Opção B — **Web Service manual**:
+   - **Runtime:** Docker
+   - **Dockerfile path:** `./Dockerfile`
+   - **Health Check Path:** `/health`
+   - Configure as variáveis da tabela acima (ou vincule o banco Render).
+6. Após deploy, valide:
+   ```bash
+   curl https://<sua-api>.onrender.com/health
+   curl https://<sua-api>.onrender.com/ready
+   ```
+
+### Deploy no Railway
+
+1. Crie um projeto e adicione **MySQL** (plugin/template).
+2. Adicione um serviço a partir do repositório (Dockerfile detectado automaticamente).
+3. Em **Variables**, configure:
+   - `NODE_ENV=production`
+   - `HOST=0.0.0.0`
+   - `JWT_SECRET=<gerar valor forte>`
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` (referências do MySQL Railway)
+4. Aplique `db.sql` no MySQL (Railway Query ou cliente externo).
+5. Configure health check em **Settings** → path `/health`.
+6. Deploy e teste `https://<sua-api>.up.railway.app/health`.
+
+### Deploy com Docker (qualquer cloud)
+
+```bash
+docker build -t ticket-sales-api .
+docker run -p 3000:3000 \
+  -e NODE_ENV=production \
+  -e HOST=0.0.0.0 \
+  -e PORT=3000 \
+  -e JWT_SECRET=<segredo> \
+  -e DB_HOST=<host> \
+  -e DB_PORT=3306 \
+  -e DB_USER=<user> \
+  -e DB_PASSWORD=<password> \
+  -e DB_NAME=tickets \
+  ticket-sales-api
+```
+
+### Checklist pós-deploy
+
+- [ ] `GET /health` retorna `200` com `database: connected`
+- [ ] `GET /ready` retorna `{ "ready": true }`
+- [ ] `GET /docs` abre o Swagger
+- [ ] Login e fluxo principal funcionam (`api.http`)
+- [ ] `JWT_SECRET` não é o valor padrão
+- [ ] Schema `db.sql` aplicado no banco de produção
+
+---
+
 ## Status atual do projeto
 
 | Área                                  | Status                        |
@@ -454,7 +551,8 @@ pnpm build           # compilar TypeScript
 | Variáveis de ambiente                 | Implementado (`.env`)         |
 | Docker Compose (API + MySQL)          | Implementado                  |
 | Health / Readiness endpoints          | Implementado                  |
-| Deploy / CI                           | Não configurado               |
+| Deploy cloud (Docker + env)           | Implementado                  |
+| Deploy / CI                           | Parcial (sem pipeline CI)     |
 
 **Maturidade:** projeto de portfólio **intermediário**, com fundamentos sólidos de backend e espaço claro para evolução em produção.
 
@@ -462,12 +560,10 @@ pnpm build           # compilar TypeScript
 
 ## Próximos passos técnicos
 
-- Externalizar configurações restantes para secrets em produção (Render/Railway)
-- Completar documentação Swagger com schemas de request/response
 - Adicionar pipeline CI (lint + test + build)
+- Completar documentação Swagger com schemas de request/response
 - Testes de integração com MySQL real (Testcontainers)
 - Lock distribuído para job de expiração em multi-instância
-- Docker Compose com serviço da API (hoje API + MySQL no Compose)
 - Pagamento real (hoje `PaymentService` é simulado no `PurchaseService`)
 
 ---

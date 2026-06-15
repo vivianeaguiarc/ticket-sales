@@ -1,47 +1,33 @@
-// import { app } from './app.js'
-// import { Database } from './database.js'
-// import { startReleaseExpiredReservationsJob } from './jobs/release-expired-reservations-job.js'
-
-// app.listen(3000, async () => {
-//   let dbConnection
-
-//   try {
-//     const pool = Database.getInstance()
-//     dbConnection = await pool.getConnection()
-
-//     await dbConnection.execute('SET FOREIGN_KEY_CHECKS = 0')
-
-//     await dbConnection.execute('TRUNCATE TABLE ticket_status_history')
-//     await dbConnection.execute('TRUNCATE TABLE purchase_tickets')
-//     await dbConnection.execute('TRUNCATE TABLE reservation_tickets')
-//     await dbConnection.execute('TRUNCATE TABLE purchases')
-//     await dbConnection.execute('TRUNCATE TABLE tickets')
-//     await dbConnection.execute('TRUNCATE TABLE events')
-//     await dbConnection.execute('TRUNCATE TABLE customers')
-//     await dbConnection.execute('TRUNCATE TABLE partners')
-//     await dbConnection.execute('TRUNCATE TABLE users')
-
-//     await dbConnection.execute('SET FOREIGN_KEY_CHECKS = 1')
-
-//     console.log('🧹 Database cleaned (tables truncated)')
-//     console.log('🚀 Server running on http://localhost:3000')
-
-//     // 🔥 INICIA O JOB AQUI
-//     startReleaseExpiredReservationsJob()
-//   } catch (error) {
-//     console.error('❌ Error during server startup:', error)
-//   } finally {
-//     if (dbConnection) dbConnection.release()
-//   }
-// })
 import { app } from './app.js'
-import { env } from './config/env.js'
+import { env, validateProductionEnv } from './config/env.js'
+import { Database } from './database.js'
 import { startReleaseExpiredReservationsJob } from './jobs/release-expired-reservations-job.js'
 
-const PORT = env.port
+async function bootstrap(): Promise<void> {
+  validateProductionEnv()
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
+  try {
+    const pool = Database.getInstance()
+    await pool.query('SELECT 1')
 
-  startReleaseExpiredReservationsJob()
+    console.log('[startup] Database connected')
+    console.log(`[startup] DB target: ${env.db.host}:${env.db.port}/${env.db.database}`)
+  } catch (error) {
+    console.error('[startup] Database connection failed:', error)
+    process.exit(1)
+  }
+
+  app.listen(env.port, env.host, () => {
+    console.log(`[startup] Ticket Sales API listening on ${env.host}:${env.port}`)
+    console.log(`[startup] NODE_ENV=${env.nodeEnv}`)
+    console.log('[startup] Health: /health | Readiness: /ready | Docs: /docs')
+
+    startReleaseExpiredReservationsJob()
+    console.log('[startup] Expired reservations job started')
+  })
+}
+
+bootstrap().catch((error: unknown) => {
+  console.error('[startup] Fatal error:', error)
+  process.exit(1)
 })

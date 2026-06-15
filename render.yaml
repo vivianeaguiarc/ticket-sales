@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: ticket-sales-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        fromDatabase:
+          name: ticket-sales-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ticket-sales-db
+          property: port
+      - key: DB_USER
+        fromDatabase:
+          name: ticket-sales-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ticket-sales-db
+          property: password
+      - key: DB_NAME
+        fromDatabase:
+          name: ticket-sales-db
+          property: database
+
+databases:
+  - name: ticket-sales-db
+    plan: free
+    databaseName: tickets
