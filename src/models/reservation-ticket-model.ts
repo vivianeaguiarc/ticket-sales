@@ -68,7 +68,7 @@ export class ReservationTicketModel {
         expires_at?: Date
       }
     },
-    options?: { connection?: PoolConnection }
+    options?: { connection?: PoolConnection; forUpdate?: boolean }
   ): Promise<ReservationTicketModel[]> {
     const db = options?.connection ?? Database.getInstance()
 
@@ -108,6 +108,10 @@ export class ReservationTicketModel {
       }
     }
 
+    if (options?.forUpdate) {
+      query += ' FOR UPDATE'
+    }
+
     const [rows] = await db.execute<RowDataPacket[]>(query, params)
 
     return rows.map((row) => new ReservationTicketModel(row as ReservationTicketModel))
@@ -118,10 +122,14 @@ export class ReservationTicketModel {
   ): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
 
-    await db.execute('UPDATE reservation_tickets SET status = ? WHERE id = ?', [
-      ReservationStatus.cancelled,
-      reservationId
-    ])
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE reservation_tickets SET status = ? WHERE id = ? AND status = ?',
+      [ReservationStatus.cancelled, reservationId, ReservationStatus.reserved]
+    )
+
+    if (result.affectedRows === 0) {
+      throw new Error('Reservation not found')
+    }
   }
   async update(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()

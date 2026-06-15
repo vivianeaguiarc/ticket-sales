@@ -202,6 +202,20 @@ export class TicketModel {
     }
   }
 
+  static async releaseIfReserved(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<boolean> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+      [TicketStatus.available, id, TicketStatus.reserved]
+    )
+
+    return result.affectedRows > 0
+  }
+
   async update(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
 

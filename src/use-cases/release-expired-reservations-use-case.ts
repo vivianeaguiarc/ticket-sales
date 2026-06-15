@@ -18,20 +18,24 @@ export class ReleaseExpiredReservationsUseCase {
             expires_at: new Date()
           }
         },
-        { connection }
+        { connection, forUpdate: true }
       )
 
       for (const reservation of expiredReservations) {
-        await TicketModel.markAsAvailable(reservation.ticket_id, { connection })
+        const released = await TicketModel.releaseIfReserved(reservation.ticket_id, {
+          connection
+        })
 
-        await TicketStatusHistoryModel.create(
-          {
-            ticket_id: reservation.ticket_id,
-            from_status: TicketStatus.reserved,
-            to_status: TicketStatus.available
-          },
-          { connection }
-        )
+        if (released) {
+          await TicketStatusHistoryModel.create(
+            {
+              ticket_id: reservation.ticket_id,
+              from_status: TicketStatus.reserved,
+              to_status: TicketStatus.available
+            },
+            { connection }
+          )
+        }
 
         await ReservationTicketModel.markAsCancelled(reservation.id, { connection })
       }

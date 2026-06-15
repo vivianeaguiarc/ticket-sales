@@ -493,6 +493,45 @@ describe('TicketModel', () => {
     })
   })
 
+  describe('releaseIfReserved', () => {
+    test('deve liberar ticket reservado e retornar true', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      const result = await TicketModel.releaseIfReserved(1)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+        [TicketStatus.available, 1, TicketStatus.reserved]
+      )
+      expect(result).toBe(true)
+    })
+
+    test('deve retornar false quando ticket não estiver reservado', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 0 }])
+
+      const result = await TicketModel.releaseIfReserved(1)
+
+      expect(result).toBe(false)
+    })
+
+    test('deve usar connection nas options quando fornecida', async () => {
+      const connectionExecuteMock = vi.fn().mockResolvedValue([{ affectedRows: 1 }])
+      const connection = {
+        execute: connectionExecuteMock
+      }
+
+      await TicketModel.releaseIfReserved(2, {
+        connection: connection as unknown as PoolConnection
+      })
+
+      expect(connectionExecuteMock).toHaveBeenCalledWith(
+        'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+        [TicketStatus.available, 2, TicketStatus.reserved]
+      )
+      expect(executeMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('delete', () => {
     test('deve deletar ticket com sucesso usando Database.getInstance()', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])

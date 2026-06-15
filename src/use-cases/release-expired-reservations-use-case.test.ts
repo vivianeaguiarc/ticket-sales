@@ -22,7 +22,7 @@ describe('ReleaseExpiredReservationsUseCase', () => {
   const getConnectionMock = vi.fn()
 
   const findReservationsMock = vi.spyOn(ReservationTicketModel, 'findAll')
-  const markAsAvailableMock = vi.spyOn(TicketModel, 'markAsAvailable')
+  const releaseIfReservedMock = vi.spyOn(TicketModel, 'releaseIfReserved')
   const createHistoryMock = vi.spyOn(TicketStatusHistoryModel, 'create')
   const markAsCancelledMock = vi.spyOn(ReservationTicketModel, 'markAsCancelled')
 
@@ -41,7 +41,7 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     } as unknown as ReturnType<typeof Database.getInstance>)
 
     findReservationsMock.mockResolvedValue([])
-    markAsAvailableMock.mockResolvedValue(undefined)
+    releaseIfReservedMock.mockResolvedValue(true)
     createHistoryMock.mockResolvedValue({} as never)
     markAsCancelledMock.mockResolvedValue(undefined)
   })
@@ -67,10 +67,10 @@ describe('ReleaseExpiredReservationsUseCase', () => {
           expires_at: expect.any(Date)
         }
       },
-      { connection }
+      { connection, forUpdate: true }
     )
 
-    expect(markAsAvailableMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
+    expect(releaseIfReservedMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
       connection
     })
 
@@ -92,6 +92,28 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     expect(releaseMock).toHaveBeenCalledTimes(1)
   })
 
+  it('deve liberar múltiplas reservas expiradas com sucesso', async () => {
+    const expiredReservations = [
+      { id: 1, ticket_id: 10, status: ReservationStatus.reserved },
+      { id: 2, ticket_id: 20, status: ReservationStatus.reserved }
+    ] as ReservationTicketModel[]
+
+    findReservationsMock.mockResolvedValue(expiredReservations)
+
+    const result = await ReleaseExpiredReservationsUseCase.execute()
+
+    expect(result).toBe(2)
+    expect(releaseIfReservedMock).toHaveBeenCalledTimes(2)
+    expect(releaseIfReservedMock).toHaveBeenNthCalledWith(1, 10, { connection })
+    expect(releaseIfReservedMock).toHaveBeenNthCalledWith(2, 20, { connection })
+    expect(createHistoryMock).toHaveBeenCalledTimes(2)
+    expect(markAsCancelledMock).toHaveBeenCalledTimes(2)
+    expect(markAsCancelledMock).toHaveBeenNthCalledWith(1, 1, { connection })
+    expect(markAsCancelledMock).toHaveBeenNthCalledWith(2, 2, { connection })
+    expect(commitMock).toHaveBeenCalledTimes(1)
+    expect(rollbackMock).not.toHaveBeenCalled()
+  })
+
   it('deve retornar 0 quando não houver reservas expiradas', async () => {
     findReservationsMock.mockResolvedValue([])
 
@@ -99,12 +121,36 @@ describe('ReleaseExpiredReservationsUseCase', () => {
 
     expect(result).toBe(0)
     expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-    expect(markAsAvailableMock).not.toHaveBeenCalled()
+    expect(releaseIfReservedMock).not.toHaveBeenCalled()
     expect(createHistoryMock).not.toHaveBeenCalled()
     expect(markAsCancelledMock).not.toHaveBeenCalled()
     expect(commitMock).toHaveBeenCalledTimes(1)
     expect(rollbackMock).not.toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('deve cancelar reserva sem registrar histórico quando ticket já estiver disponível', async () => {
+    const expiredReservation = {
+      id: 1,
+      ticket_id: 10,
+      status: ReservationStatus.reserved
+    } as ReservationTicketModel
+
+    findReservationsMock.mockResolvedValue([expiredReservation])
+    releaseIfReservedMock.mockResolvedValue(false)
+
+    const result = await ReleaseExpiredReservationsUseCase.execute()
+
+    expect(result).toBe(1)
+    expect(releaseIfReservedMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
+      connection
+    })
+    expect(createHistoryMock).not.toHaveBeenCalled()
+    expect(markAsCancelledMock).toHaveBeenCalledWith(expiredReservation.id, {
+      connection
+    })
+    expect(commitMock).toHaveBeenCalledTimes(1)
+    expect(rollbackMock).not.toHaveBeenCalled()
   })
 
   it('deve fazer rollback se ocorrer erro ao liberar ticket', async () => {
@@ -115,14 +161,14 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     } as ReservationTicketModel
 
     findReservationsMock.mockResolvedValue([expiredReservation])
-    markAsAvailableMock.mockRejectedValue(new Error('Ticket release failed'))
+    releaseIfReservedMock.mockRejectedValue(new Error('Ticket release failed'))
 
     await expect(ReleaseExpiredReservationsUseCase.execute()).rejects.toThrow(
       'Ticket release failed'
     )
 
     expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-    expect(markAsAvailableMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
+    expect(releaseIfReservedMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
       connection
     })
     expect(createHistoryMock).not.toHaveBeenCalled()
@@ -147,7 +193,7 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     )
 
     expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-    expect(markAsAvailableMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
+    expect(releaseIfReservedMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
       connection
     })
     expect(createHistoryMock).toHaveBeenCalledWith(
@@ -172,14 +218,14 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     } as ReservationTicketModel
 
     findReservationsMock.mockResolvedValue([expiredReservation])
-    markAsCancelledMock.mockRejectedValue(new Error('Reservation update failed'))
+    markAsCancelledMock.mockRejectedValue(new Error('Reservation not found'))
 
     await expect(ReleaseExpiredReservationsUseCase.execute()).rejects.toThrow(
-      'Reservation update failed'
+      'Reservation not found'
     )
 
     expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-    expect(markAsAvailableMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
+    expect(releaseIfReservedMock).toHaveBeenCalledWith(expiredReservation.ticket_id, {
       connection
     })
     expect(createHistoryMock).toHaveBeenCalledWith(
@@ -193,6 +239,23 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     expect(markAsCancelledMock).toHaveBeenCalledWith(expiredReservation.id, {
       connection
     })
+    expect(commitMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalledTimes(1)
+    expect(releaseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('deve fazer rollback e liberar conexão em erro de banco ao buscar reservas', async () => {
+    findReservationsMock.mockRejectedValue(new Error('DB connection failed'))
+
+    await expect(ReleaseExpiredReservationsUseCase.execute()).rejects.toThrow(
+      'DB connection failed'
+    )
+
+    expect(beginTransactionMock).toHaveBeenCalledTimes(1)
+    expect(findReservationsMock).toHaveBeenCalled()
+    expect(releaseIfReservedMock).not.toHaveBeenCalled()
+    expect(createHistoryMock).not.toHaveBeenCalled()
+    expect(markAsCancelledMock).not.toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalledTimes(1)
     expect(releaseMock).toHaveBeenCalledTimes(1)

@@ -58,4 +58,31 @@ describe('startReleaseExpiredReservationsJob', () => {
 
     clearInterval(intervalId)
   })
+
+  test('não deve executar o use case em paralelo se a execução anterior ainda estiver em andamento', async () => {
+    let resolveExecution: (() => void) | undefined
+
+    executeMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveExecution = resolve
+        })
+    )
+
+    const intervalId = startReleaseExpiredReservationsJob()
+
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(executeMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(executeMock).toHaveBeenCalledTimes(1)
+
+    resolveExecution?.()
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(executeMock).toHaveBeenCalledTimes(2)
+
+    clearInterval(intervalId)
+  })
 })

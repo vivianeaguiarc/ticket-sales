@@ -24,6 +24,7 @@ describe('CreatePurchaseUseCase', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.clearAllMocks()
 
     beginTransactionMock.mockResolvedValue(undefined)
     commitMock.mockResolvedValue(undefined)

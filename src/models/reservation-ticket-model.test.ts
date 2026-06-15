@@ -178,6 +178,57 @@ describe('ReservationTicketModel', () => {
       expect(reservations).toHaveLength(1)
       expect(reservations[0]).toBeInstanceOf(ReservationTicketModel)
     })
+
+    it('deve aplicar FOR UPDATE quando forUpdate estiver habilitado', async () => {
+      const executeMock = vi.fn().mockResolvedValue([[]])
+      const connection = {
+        execute: executeMock
+      }
+
+      await ReservationTicketModel.findAll(
+        {
+          where: {
+            status: ReservationStatus.reserved,
+            expires_at: new Date()
+          }
+        },
+        { connection: connection as never, forUpdate: true }
+      )
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'SELECT * FROM reservation_tickets WHERE status = ? AND expires_at < ? FOR UPDATE',
+        [ReservationStatus.reserved, expect.any(Date)]
+      )
+    })
+  })
+
+  describe('markAsCancelled', () => {
+    it('deve cancelar uma reservation reservada com sucesso', async () => {
+      const executeMock = vi.fn().mockResolvedValue([{ affectedRows: 1 }])
+
+      vi.spyOn(Database, 'getInstance').mockReturnValue({
+        execute: executeMock
+      } as unknown as ReturnType<typeof Database.getInstance>)
+
+      await ReservationTicketModel.markAsCancelled(1)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'UPDATE reservation_tickets SET status = ? WHERE id = ? AND status = ?',
+        [ReservationStatus.cancelled, 1, ReservationStatus.reserved]
+      )
+    })
+
+    it('deve lançar erro ao tentar cancelar reservation inexistente ou já cancelada', async () => {
+      const executeMock = vi.fn().mockResolvedValue([{ affectedRows: 0 }])
+
+      vi.spyOn(Database, 'getInstance').mockReturnValue({
+        execute: executeMock
+      } as unknown as ReturnType<typeof Database.getInstance>)
+
+      await expect(ReservationTicketModel.markAsCancelled(999)).rejects.toThrow(
+        'Reservation not found'
+      )
+    })
   })
 
   describe('update', () => {
