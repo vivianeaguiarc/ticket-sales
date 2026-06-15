@@ -8,75 +8,185 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![Vitest](https://img.shields.io/badge/Testes-Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)](https://ticket-sales-3su2.onrender.com/docs/)
 [![License](https://img.shields.io/badge/License-ISC-blue)]()
 
 ---
 
-## Início rápido
+## 🚀 Demonstração Online
+
+A API está **publicada e acessível**. Explore a documentação interativa e teste os endpoints diretamente no navegador.
+
+### Swagger
+
+**https://ticket-sales-3su2.onrender.com/docs/**
+
+Documentação OpenAPI pública — sem autenticação. Use **Authorize** com `Bearer <token>` após o login para testar rotas protegidas.
+
+### API Base URL
+
+**https://ticket-sales-3su2.onrender.com**
 
 ```bash
-pnpm install
-cp .env.example .env
-docker compose up -d mysql   # ou: docker compose up --build -d
-pnpm dev                     # http://localhost:3000
-pnpm test                    # 331 testes unit/integration
-curl http://localhost:3000/health
+# Health check
+curl https://ticket-sales-3su2.onrender.com/health
+
+# Readiness
+curl https://ticket-sales-3su2.onrender.com/ready
 ```
 
-Fluxo manual completo: abra [`api.http`](api.http) e execute os passos **0 → 12**.
+---
+
+## 👩‍💻 Sobre o Projeto
+
+**Ticket Sales** é uma API REST para gerenciamento e venda de ingressos desenvolvida com Node.js, TypeScript, Express e MySQL, aplicando conceitos de transações, concorrência, autenticação JWT, testes automatizados, Docker e evolução arquitetural.
+
+O sistema conecta **parceiros** (organizadores de eventos) e **clientes** (compradores) em um fluxo completo de ticketing — da criação de eventos à compra e cancelamento de ingressos — com garantias de integridade em cenários concorrentes.
+
+**Ciclo de vida do ticket:**
+
+```
+available → reserved → sold
+     ↑         │         │
+     └─────────┴─────────┘
+   (expiração / cancelamento)
+```
 
 ---
 
-## Destaques técnicos
+## ✨ Principais Funcionalidades
 
-| Destaque                           | O que demonstra                                                                  |
-| ---------------------------------- | -------------------------------------------------------------------------------- |
-| **Transações MySQL**               | Reserva, compra e cancelamento atômicos (`BEGIN` / `COMMIT` / `ROLLBACK`)        |
-| **Controle de concorrência**       | `SELECT FOR UPDATE` + `UPDATE WHERE status = 'available'` — evita double selling |
-| **Expiração automática**           | Job a cada 60s libera reservas vencidas (5 min) e restaura tickets               |
-| **Audit logs**                     | Rastreabilidade de eventos de negócio na mesma transação da operação             |
-| **Health / Readiness**             | `GET /health` e `GET /ready` com verificação real do MySQL                       |
-| **Docker**                         | Compose API + MySQL; schema `db.sql` aplicado automaticamente                    |
-| **Testes automatizados**           | 331 unit/integration + 15 E2E; cobertura ~86%                                    |
-| **Clean Architecture incremental** | 5 módulos migrados (Strangler Fig — sem big bang)                                |
-| **Segurança básica**               | JWT, bcrypt, middleware de auth, validação de env em produção                    |
-| **Hardening HTTP**                 | CORS / rate limit documentados em `.env.example` — roadmap                       |
-
----
-
-## Stack
-
-`Node.js` · `TypeScript` · `Express 5` · `MySQL` · `JWT` · `bcrypt` · `Vitest` · `Supertest` · `Docker` · `Swagger`
-
----
-
-## Funcionalidades
-
-- Autenticação JWT (partners e customers)
-- Eventos e tickets em lote
-- Reservas temporárias (`available → reserved`)
-- Compras transacionais (`available → sold`)
-- Cancelamento com restauração de tickets
-- Histórico de status + consulta unificada por evento
-- Listagem pública de eventos
+| Funcionalidade                 | Descrição                                    |
+| ------------------------------ | -------------------------------------------- |
+| 🔐 **Autenticação JWT**        | Login seguro para partners e customers       |
+| 🤝 **Cadastro de parceiros**   | Organizadores criam eventos e tickets        |
+| 👤 **Cadastro de clientes**    | Compradores reservam e compram ingressos     |
+| 🎫 **Gestão de eventos**       | CRUD por partner + listagem pública          |
+| 🎟️ **Criação de ingressos**    | Tickets em lote com preço e status           |
+| ⏳ **Reserva de ingressos**    | Bloqueio temporário (5 minutos)              |
+| 💳 **Compra de ingressos**     | Venda transacional com `card_token`          |
+| ↩️ **Cancelamento de compras** | Restaura tickets para `available`            |
+| ⏰ **Expiração automática**    | Job libera reservas vencidas a cada 60s      |
+| 📊 **Histórico de status**     | `ticket_status_history` por ticket           |
+| 📝 **Audit Logs**              | Rastreabilidade de ações de negócio          |
+| 📖 **Swagger / OpenAPI**       | Documentação interativa em `/docs`           |
+| 🐳 **Docker**                  | Compose com API + MySQL                      |
+| ✅ **Testes automatizados**    | Unitários, integração e E2E (~86% cobertura) |
 
 Regras detalhadas: [docs/business-rules.md](docs/business-rules.md)
 
 ---
 
-## Arquitetura
+## 🏗 Arquitetura
+
+Evolução incremental para **Clean Architecture** (Strangler Fig Pattern) — sem reescrita total, preservando contratos HTTP.
 
 ```text
-Controller → Factory → Use Case → Repository (port) → Adapter MySQL → Model
+HTTP Request
+    ↓
+Controllers        → entrada HTTP, validação, status codes
+    ↓
+Factories          → composition root (wiring de dependências)
+    ↓
+Use Cases          → regras de negócio (application layer)
+    ↓
+Repositories       → ports (interfaces) + adapters MySQL (infra)
+    ↓
+Models + MySQL     → persistência (Active Record encapsulado)
 ```
 
-Módulos migrados: **Reservations · Purchases · Tickets · Events · Identidade**
+| Camada          | Papel                                                |
+| --------------- | ---------------------------------------------------- |
+| **Controllers** | Rotas Express, auth de perfil, mapeamento HTTP       |
+| **Services**    | Facades finos + `EventService.getHistory` (legado)   |
+| **Use Cases**   | Orquestração transacional sem SQL direto             |
+| **Models**      | Acesso MySQL; encapsulados por repositories          |
+| **Jobs**        | Expiração automática de reservas (`setInterval` 60s) |
+| **MySQL**       | Transações, `FOR UPDATE`, histórico e audit          |
 
-Documentação: [docs/architecture.md](docs/architecture.md)
+**Módulos migrados:** Reservations · Purchases · Tickets · Events · Identidade
+
+Documentação completa: [docs/architecture.md](docs/architecture.md) · [docs/interview-guide.md](docs/interview-guide.md)
 
 ---
 
-## Exemplos de endpoints
+## 🔒 Aspectos Técnicos
+
+| Aspecto                      | Implementação                                                     |
+| ---------------------------- | ----------------------------------------------------------------- |
+| **Transações MySQL**         | `BEGIN` / `COMMIT` / `ROLLBACK` em reserva, compra e cancelamento |
+| **Controle de concorrência** | `SELECT FOR UPDATE` + `UPDATE WHERE status = 'available'`         |
+| **Reserva temporária**       | Tickets bloqueados por 5 min; expiração automática                |
+| **Rollback em falhas**       | Operação atômica — nenhuma alteração parcial persiste             |
+| **JWT Authentication**       | bcrypt + token `{ id, email }` com expiração de 1h                |
+| **Logs de auditoria**        | `audit_logs` gravados na mesma transação da operação              |
+
+---
+
+## 🧪 Testes
+
+| Nível                 | Escopo                                    | Comando         |
+| --------------------- | ----------------------------------------- | --------------- |
+| **Unit Tests**        | Use cases, repositories, mappers, domain  | `pnpm test`     |
+| **Integration Tests** | Controllers HTTP com Supertest + mocks    | `pnpm test`     |
+| **E2E Tests**         | Fluxo completo com MySQL real (15 testes) | `pnpm test:e2e` |
+
+```bash
+# Suíte principal (331 testes — sem MySQL)
+pnpm test
+
+# Cobertura (~86%; metas ≥ 80%)
+pnpm test:coverage
+
+# E2E — requer MySQL rodando
+pnpm test:e2e
+
+# Pipeline local completa
+pnpm check
+```
+
+---
+
+## 🐳 Executando com Docker
+
+```bash
+# Subir API + MySQL
+docker compose up -d
+
+# Apenas MySQL (dev local)
+docker compose up -d mysql && pnpm dev
+
+# Health check
+curl http://localhost:3000/health
+```
+
+| Serviço | Container          | Porta |
+| ------- | ------------------ | ----- |
+| API     | `ticket-sales-api` | 3000  |
+| MySQL   | `ticket-sales-db`  | 3307  |
+
+Reset do banco: `docker compose down -v && docker compose up --build -d`
+
+---
+
+## ⚡ Início Rápido (local)
+
+```bash
+git clone https://github.com/vivianeaguiarc/ticket-sales.git
+cd ticket-sales
+pnpm install
+cp .env.example .env
+docker compose up -d mysql
+pnpm dev
+```
+
+Fluxo manual: abra [`api.http`](api.http) e execute os passos **0 → 12**.
+
+---
+
+## 📡 Endpoints
+
+### Exemplos
 
 ```http
 GET  /health
@@ -90,171 +200,61 @@ POST /partners/events/purchases/:id/cancel
 GET  /docs
 ```
 
-| Método | Rota                                | Auth | Descrição           |
-| ------ | ----------------------------------- | ---- | ------------------- |
-| GET    | `/health`                           | Não  | API + MySQL         |
-| GET    | `/ready`                            | Não  | Readiness           |
-| POST   | `/auth/login`                       | Não  | Login → JWT         |
-| POST   | `/partners/events/reservations`     | Sim  | Reservar tickets    |
-| POST   | `/partners/events/purchases`        | Sim  | Comprar tickets     |
-| GET    | `/partners/events/:eventId/history` | Sim  | Histórico do evento |
+### Referência completa
 
-Lista completa na seção [Endpoints](#endpoints-completos) abaixo.
-
----
-
-## Checklist — validar o projeto
-
-```bash
-pnpm install          # 1. dependências
-docker compose up -d  # 2. MySQL (+ API opcional)
-pnpm dev              # 3. API local (se não usar container api)
-pnpm test             # 4. testes
-pnpm lint             # 5. ESLint
-pnpm build            # 6. compilar TypeScript
-```
-
-Opcional: `pnpm test:e2e` (requer MySQL) · `pnpm test:coverage` · `pnpm check` (pipeline completa)
-
-Validação manual: [`api.http`](api.http) passos 0–12 → `curl /health` → queries MySQL no passo 12.
+| Método | Rota                                    | Auth | Descrição                  |
+| ------ | --------------------------------------- | ---- | -------------------------- |
+| GET    | `/health`                               | Não  | Health check (API + MySQL) |
+| GET    | `/ready`                                | Não  | Readiness                  |
+| POST   | `/auth/login`                           | Não  | Login → JWT                |
+| POST   | `/partners/register`                    | Não  | Cadastro parceiro          |
+| POST   | `/customers/register`                   | Não  | Cadastro cliente           |
+| GET    | `/events`                               | Não  | Listar eventos (público)   |
+| POST   | `/partners/events`                      | Sim  | Criar evento               |
+| GET    | `/partners/events`                      | Sim  | Eventos do parceiro        |
+| GET    | `/partners/events/:eventId/history`     | Sim  | Histórico do evento        |
+| POST   | `/partners/events/:eventId/tickets`     | Sim  | Criar tickets              |
+| GET    | `/partners/events/:eventId/tickets`     | Sim  | Listar tickets             |
+| POST   | `/partners/events/reservations`         | Sim  | Reservar tickets           |
+| POST   | `/partners/events/purchases`            | Sim  | Comprar tickets            |
+| POST   | `/partners/events/purchases/:id/cancel` | Sim  | Cancelar compra            |
+| GET    | `/docs`                                 | Não  | Swagger UI                 |
 
 ---
 
-## Docker
+## ☁️ Deploy no Render
 
-```bash
-# API + MySQL
-docker compose up --build -d
+A API em produção está hospedada no [Render](https://render.com):
 
-# Apenas MySQL (dev local com pnpm dev)
-docker compose up -d mysql
+- **Swagger:** https://ticket-sales-3su2.onrender.com/docs/
+- **API:** https://ticket-sales-3su2.onrender.com
 
-# Reset do banco
-docker compose down -v && docker compose up --build -d
+### Configuração (novo deploy)
 
-# MySQL shell
-docker exec -it ticket-sales-db mysql -uroot -proot tickets
-```
+| Campo             | Valor                        |
+| ----------------- | ---------------------------- |
+| **Build Command** | `pnpm install && pnpm build` |
+| **Start Command** | `pnpm start`                 |
+| **Health Check**  | `/health`                    |
 
-| Serviço | Container          | Porta |
-| ------- | ------------------ | ----- |
-| API     | `ticket-sales-api` | 3000  |
-| MySQL   | `ticket-sales-db`  | 3307  |
+Blueprint automático: [`render.yaml`](render.yaml)
+
+Variáveis obrigatórias: `NODE_ENV`, `HOST`, `DB_*`, `JWT_SECRET`. Aplique `db.sql` no MySQL antes do primeiro uso.
 
 ---
 
-## Testes
-
-| Comando              | Descrição                                  |
-| -------------------- | ------------------------------------------ |
-| `pnpm test`          | Unitários + integração (331 testes)        |
-| `pnpm test:e2e`      | Fluxo principal com MySQL real (15 testes) |
-| `pnpm test:coverage` | Cobertura (~86%; metas ≥ 80%)              |
-| `pnpm lint`          | ESLint                                     |
-| `pnpm format`        | Prettier                                   |
-| `pnpm typecheck`     | TypeScript sem emit                        |
-| `pnpm build`         | Compilar para `dist/`                      |
-| `pnpm start`         | Rodar build de produção                    |
-
----
-
-## Deploy no Render
-
-### Pré-requisitos
-
-1. Repositório no GitHub conectado ao Render
-2. Banco MySQL no Render (ou externo)
-3. Schema `db.sql` aplicado no MySQL de produção
-
-### Blueprint (recomendado)
-
-O arquivo [`render.yaml`](render.yaml) na raiz configura Web Service + MySQL automaticamente:
-
-```bash
-# No dashboard Render: New → Blueprint → conectar repositório
-```
-
-### Web Service manual
-
-| Campo                 | Valor                        |
-| --------------------- | ---------------------------- |
-| **Runtime**           | Node                         |
-| **Build Command**     | `pnpm install && pnpm build` |
-| **Start Command**     | `pnpm start`                 |
-| **Health Check Path** | `/health`                    |
-
-### Variáveis de ambiente (produção)
-
-| Variável              | Obrigatória | Descrição                               |
-| --------------------- | ----------- | --------------------------------------- |
-| `NODE_ENV`            | Sim         | `production`                            |
-| `HOST`                | Sim         | `0.0.0.0`                               |
-| `PORT`                | Não         | Render injeta automaticamente           |
-| `DB_HOST`             | Sim         | Host do MySQL Render                    |
-| `DB_PORT`             | Sim         | `3306`                                  |
-| `DB_USER`             | Sim         | Usuário do banco                        |
-| `DB_PASSWORD`         | Sim         | Senha do banco                          |
-| `DB_NAME`             | Sim         | `tickets`                               |
-| `JWT_SECRET`          | Sim         | Segredo forte (não use o padrão)        |
-| `HUSKY`               | Recomendado | `0` (evita hook no CI/Render)           |
-| `RENDER_EXTERNAL_URL` | Auto        | Injetado pelo Render — usado no Swagger |
-| `CORS_ORIGIN`         | Não         | Planejado (ainda não implementado)      |
-
-### Aplicar schema no MySQL Render
-
-Execute o conteúdo de `db.sql` no banco via Shell do Render ou cliente MySQL externo.
-
-### Validar após deploy
-
-```bash
-curl https://seu-servico.onrender.com/health
-curl https://seu-servico.onrender.com/ready
-```
-
-Resposta esperada do health:
-
-```json
-{ "status": "ok", "database": "connected", "timestamp": "..." }
-```
-
-### Swagger público
-
-Documentação interativa disponível **sem autenticação**:
-
-```
-https://seu-servico.onrender.com/docs
-```
-
-No Swagger UI, use **Authorize** com `Bearer <token>` após login para testar rotas protegidas.
-
----
-
-## Configuração (.env)
-
-```bash
-cp .env.example .env
-```
-
-| Variável     | Local              | Docker (API) |
-| ------------ | ------------------ | ------------ |
-| `DB_HOST`    | `localhost`        | `mysql`      |
-| `DB_PORT`    | `3307`             | `3306`       |
-| `JWT_SECRET` | altere em produção | valor forte  |
-
----
-
-## Documentação
+## 📚 Documentação Técnica
 
 | Documento                                          | Conteúdo                      |
 | -------------------------------------------------- | ----------------------------- |
 | [docs/architecture.md](docs/architecture.md)       | Camadas, migração, trade-offs |
 | [docs/business-rules.md](docs/business-rules.md)   | Regras de domínio             |
-| [docs/interview-guide.md](docs/interview-guide.md) | Entrevistas técnicas          |
+| [docs/interview-guide.md](docs/interview-guide.md) | Roteiro para entrevistas      |
 | [api.http](api.http)                               | Fluxo HTTP manual             |
 
 ---
 
-## Estrutura do projeto
+## 🗂 Estrutura do Projeto
 
 ```text
 src/
@@ -262,62 +262,30 @@ src/
 ├── application/    # Use cases
 ├── infra/          # Repositories, JWT, factories
 ├── controller/     # Rotas HTTP
-├── e2e/            # Testes E2E
-├── models/         # Persistência (Active Record)
-└── jobs/           # Expiração de reservas
+├── services/       # Facades finos
+├── use-cases/      # Legado (ticket-controller + job)
+├── models/         # Persistência MySQL
+├── jobs/           # Expiração de reservas
+└── e2e/            # Testes E2E
 ```
 
 ---
 
-## Validação no MySQL
+## 📊 Status do Projeto
 
-```sql
-SELECT id, status, price FROM tickets ORDER BY id;
-SELECT action, entity_type, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 10;
-SELECT ticket_id, from_status, to_status FROM ticket_status_history ORDER BY changed_at DESC LIMIT 10;
-```
-
----
-
-## Endpoints completos
-
-| Método | Rota                                    | Auth | Descrição           |
-| ------ | --------------------------------------- | ---- | ------------------- |
-| GET    | `/health`                               | Não  | Health check        |
-| GET    | `/ready`                                | Não  | Readiness           |
-| POST   | `/auth/login`                           | Não  | Login               |
-| POST   | `/partners/register`                    | Não  | Cadastro parceiro   |
-| POST   | `/customers/register`                   | Não  | Cadastro cliente    |
-| GET    | `/events`                               | Não  | Listar eventos      |
-| POST   | `/partners/events`                      | Sim  | Criar evento        |
-| GET    | `/partners/events`                      | Sim  | Eventos do parceiro |
-| GET    | `/partners/events/:eventId/history`     | Sim  | Histórico           |
-| POST   | `/partners/events/:eventId/tickets`     | Sim  | Criar tickets       |
-| GET    | `/partners/events/:eventId/tickets`     | Sim  | Listar tickets      |
-| POST   | `/partners/events/reservations`         | Sim  | Reservar            |
-| POST   | `/partners/events/purchases`            | Sim  | Comprar             |
-| POST   | `/partners/events/purchases/:id/cancel` | Sim  | Cancelar            |
-| GET    | `/docs`                                 | Não  | Swagger UI          |
+| Área                                               | Status |
+| -------------------------------------------------- | ------ |
+| Domínio completo (reserva / compra / cancelamento) | ✅     |
+| Concorrência + transações                          | ✅     |
+| Testes + E2E + cobertura                           | ✅     |
+| Docker + deploy Render                             | ✅     |
+| Swagger público em produção                        | ✅     |
+| Clean Architecture (5 módulos)                     | ✅     |
+| CI/CD · Rate limit · CORS · Helmet                 | 🔜     |
 
 ---
 
-## Status do projeto
-
-| Área                                           | Status |
-| ---------------------------------------------- | ------ |
-| Domínio completo (reserva/compra/cancelamento) | ✅     |
-| Concorrência + transações                      | ✅     |
-| Testes + E2E + cobertura                       | ✅     |
-| Docker + deploy                                | ✅     |
-| Deploy Render (Node + Swagger público)         | ✅     |
-| Clean Architecture (5 módulos)                 | ✅     |
-| CI/CD · Rate limit · CORS · Helmet             | 🔜     |
-
-**Maturidade:** portfólio intermediário-avançado — pronto para GitHub, currículo e entrevistas.
-
----
-
-## Diagrama — compra
+## 📈 Diagrama — Compra Transacional
 
 ```mermaid
 sequenceDiagram
@@ -335,12 +303,13 @@ sequenceDiagram
 
 ---
 
-## Autora
+## 👤 Autora
 
 **Viviane Aguiar** — Backend Developer · Node.js · TypeScript
 
 - LinkedIn: [linkedin.com/in/vivianeaguiarc](https://www.linkedin.com/in/vivianeaguiarc/)
 - Email: [vivianeaguiarc@outlook.com](mailto:vivianeaguiarc@outlook.com)
+- Demo: [ticket-sales-3su2.onrender.com/docs](https://ticket-sales-3su2.onrender.com/docs/)
 
 ## Licença
 
