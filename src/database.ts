@@ -1,5 +1,7 @@
 import * as mysql from 'mysql2/promise'
-// Singleton
+
+import { env } from './config/env.js'
+
 export class Database {
   private static instance: mysql.Pool
 
@@ -8,11 +10,11 @@ export class Database {
   public static getInstance(): mysql.Pool {
     if (!Database.instance) {
       Database.instance = mysql.createPool({
-        host: 'localhost',
-        user: 'root',
-        password: 'root',
-        database: 'tickets',
-        port: 3307,
+        host: env.db.host,
+        user: env.db.user,
+        password: env.db.password,
+        database: env.db.database,
+        port: env.db.port,
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0

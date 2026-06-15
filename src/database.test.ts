@@ -12,6 +12,7 @@ vi.mock('mysql2/promise', () => {
   }
 })
 
+import { env } from './config/env.js'
 import { Database } from './database.js'
 
 describe('Database (Singleton)', () => {
@@ -29,11 +30,11 @@ describe('Database (Singleton)', () => {
 
     expect(createPoolMock).toHaveBeenCalledTimes(1)
     expect(createPoolMock).toHaveBeenCalledWith({
-      host: 'localhost',
-      user: 'root',
-      password: 'root',
-      database: 'tickets',
-      port: 3307,
+      host: env.db.host,
+      user: env.db.user,
+      password: env.db.password,
+      database: env.db.database,
+      port: env.db.port,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0

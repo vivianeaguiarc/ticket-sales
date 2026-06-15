@@ -240,9 +240,7 @@ Arquivos de apoio na raiz:
 
 ### Pré-requisitos
 
-- Node.js 20+ (recomendado 24)
-- pnpm 10+
-- Docker + Docker Compose **ou** MySQL 8+ instalado localmente
+- Node.js 20+ (recomendado 24) e pnpm 10+ **ou** Docker + Docker Compose
 
 ### Passos
 
@@ -257,71 +255,106 @@ cp .env.example .env
 
 ## Configuração do banco (MySQL)
 
-### Opção A — Docker Compose (recomendado)
+### Opção A — Docker Compose completo (API + MySQL) **recomendado**
 
-Sobe MySQL 8 na porta **3307**, cria o banco `tickets` e aplica o `db.sql` automaticamente na primeira inicialização.
+Sobe a API na porta **3000** e o MySQL na porta **3307** (host), com schema aplicado automaticamente.
 
 ```bash
-# subir em background
-docker compose up -d
+# build e subir em background
+docker compose up --build -d
 
-# ver status e healthcheck
+# ver status (api aguarda mysql healthy)
 docker compose ps
 
-# acompanhar logs
+# logs da API
+docker compose logs -f api
+
+# logs do MySQL
 docker compose logs -f mysql
 ```
 
-Conferir tabelas:
-
-```bash
-docker exec -it ticket-sales-mysql mysql -uroot -proot tickets -e "SHOW TABLES;"
-```
-
-Parar o banco:
+Parar ambiente:
 
 ```bash
 docker compose down
 ```
 
-Recriar do zero (apaga dados e reaplica o schema):
+Resetar volumes (apaga dados e reaplica `db.sql`):
 
 ```bash
 docker compose down -v
-docker compose up -d
+docker compose up --build -d
 ```
 
-> O script `db.sql` em `docker-entrypoint-initdb.d` só roda quando o volume `mysql_data` é criado pela primeira vez. Para aplicar mudanças no schema em um banco já existente, use `docker compose down -v` ou aplique o SQL manualmente.
+Acessar MySQL no container:
 
-As variáveis `DB_PORT`, `DB_PASSWORD` e `DB_NAME` do `.env` são usadas pelo Compose (valores padrão: `3307`, `root`, `tickets`).
-
-### Opção B — MySQL local
-
-#### 1. Criar banco
-
-```sql
-CREATE DATABASE tickets;
+```bash
+docker exec -it ticket-sales-db mysql -uroot -proot tickets
 ```
 
-#### 2. Aplicar schema
+Health check:
+
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/ready
+```
+
+Resposta esperada com tudo saudável:
+
+```json
+{ "status": "ok", "database": "connected", "timestamp": "..." }
+{ "ready": true }
+```
+
+Testar fluxo completo: abra `api.http` e execute os passos (0 → 12) com a API em `http://localhost:3000`.
+
+| Serviço | Container          | Porta host | Porta interna |
+| ------- | ------------------ | ---------- | ------------- |
+| API     | `ticket-sales-api` | 3000       | 3000          |
+| MySQL   | `ticket-sales-db`  | 3307       | 3306          |
+
+A API no Docker usa `DB_HOST=mysql` e `DB_PORT=3306` (definido no `docker-compose.yml`).
+
+### Opção B — Apenas MySQL no Docker + API local (`pnpm dev`)
+
+Útil para desenvolvimento com hot reload.
+
+```bash
+# subir só o banco
+docker compose up -d mysql
+
+# na raiz do projeto
+cp .env.example .env   # DB_HOST=localhost, DB_PORT=3307
+pnpm install
+pnpm dev
+```
+
+### Opção C — MySQL instalado localmente
 
 ```bash
 mysql -u root -p -P 3307 < db.sql
+cp .env.example .env
+pnpm dev
 ```
 
-### Conexão da API
+### Variáveis de ambiente
 
-No estado atual, a conexão está em `src/database.ts`:
+Copie `.env.example` para `.env`:
 
-| Variável | Valor padrão |
-| -------- | ------------ |
-| host     | `localhost`  |
-| port     | `3307`       |
-| user     | `root`       |
-| password | `root`       |
-| database | `tickets`    |
+| Variável       | Local (`pnpm dev`) | Docker Compose (API) |
+| -------------- | ------------------ | -------------------- |
+| `PORT`         | `3000`             | `3000`               |
+| `DB_HOST`      | `localhost`        | `mysql`              |
+| `DB_PORT`      | `3307`             | `3306`               |
+| `DB_USER`      | `root`             | `root`               |
+| `DB_PASSWORD`  | `root`             | `root`               |
+| `DB_NAME`      | `tickets`          | `tickets`            |
+| `JWT_SECRET`   | altere em produção | altere em produção   |
+| `DB_HOST_PORT` | `3307`             | porta MySQL no host  |
 
-> Para evolução futura, use `.env.example` como referência de variáveis.
+A conexão é configurada via `src/config/env.ts` (carrega `.env` com `dotenv`).
+
+> O script `db.sql` em `docker-entrypoint-initdb.d` só roda na **primeira** criação do volume `mysql_data`.
 
 ---
 
@@ -331,7 +364,9 @@ No estado atual, a conexão está em `src/database.ts`:
 cp .env.example .env
 ```
 
-Hoje o JWT usa secret fixo em `src/app.ts` (`your_secret_key`). Em produção, externalizar via variável de ambiente é recomendado.
+Variáveis principais: `PORT`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`. Ver tabela na seção de banco acima.
+
+O JWT usa `JWT_SECRET` do `.env` (padrão: `your_secret_key`). Em produção, use um valor forte.
 
 ---
 
@@ -371,7 +406,7 @@ Atualmente: **290 testes** cobrindo controllers, use cases, services, models e j
 
 ## Como testar com api.http
 
-1. Suba o MySQL: `docker compose up -d` (ou use MySQL local + `db.sql`).
+1. Suba o ambiente: `docker compose up --build -d` **ou** `docker compose up -d mysql` + `pnpm dev`.
 2. Execute `pnpm dev`.
 3. Abra `api.http` no VS Code/Cursor com REST Client.
 4. Execute os blocos **na ordem numérica** (1 → 12).
@@ -384,9 +419,11 @@ Atualmente: **290 testes** cobrindo controllers, use cases, services, models e j
 ## Comandos úteis
 
 ```bash
-docker compose up -d   # MySQL (porta 3307)
-docker compose down    # parar banco
-pnpm dev               # API em desenvolvimento
+docker compose up --build -d  # API + MySQL
+docker compose down           # parar
+docker compose down -v        # reset volumes + schema
+docker compose logs -f api    # logs da API
+pnpm dev                      # API local (MySQL no Docker ou local)
 pnpm test            # testes
 pnpm test:coverage   # cobertura
 pnpm lint            # ESLint
@@ -414,8 +451,8 @@ pnpm build           # compilar TypeScript
 | Audit logs                            | Implementado                  |
 | Testes automatizados                  | Implementado                  |
 | Swagger                               | Básico (endpoints principais) |
-| Variáveis de ambiente                 | Parcial (hardcoded em código) |
-| Docker Compose (MySQL)                | Implementado                  |
+| Variáveis de ambiente                 | Implementado (`.env`)         |
+| Docker Compose (API + MySQL)          | Implementado                  |
 | Health / Readiness endpoints          | Implementado                  |
 | Deploy / CI                           | Não configurado               |
 
@@ -425,12 +462,12 @@ pnpm build           # compilar TypeScript
 
 ## Próximos passos técnicos
 
-- Externalizar configurações (`database.ts`, JWT secret) para `.env`
+- Externalizar configurações restantes para secrets em produção (Render/Railway)
 - Completar documentação Swagger com schemas de request/response
 - Adicionar pipeline CI (lint + test + build)
 - Testes de integração com MySQL real (Testcontainers)
 - Lock distribuído para job de expiração em multi-instância
-- Docker Compose com serviço da API (hoje só MySQL; API roda no host)
+- Docker Compose com serviço da API (hoje API + MySQL no Compose)
 - Pagamento real (hoje `PaymentService` é simulado no `PurchaseService`)
 
 ---

@@ -2,6 +2,7 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import swaggerUi from 'swagger-ui-express'
 
+import { env } from './config/env.js'
 import { authRoutes } from './controller/auth-controller.js'
 import { customerRoutes } from './controller/customer-controller.js'
 import { eventsRoutes } from './controller/event-controller.js'
@@ -42,7 +43,7 @@ app.use(async (req, res, next) => {
   }
 
   try {
-    const payload = jwt.verify(token, 'your_secret_key') as {
+    const payload = jwt.verify(token, env.jwtSecret) as {
       id: number
       email: string
     }
