@@ -158,6 +158,77 @@ docker exec -it ticket-sales-db mysql -uroot -proot tickets
 
 ---
 
+## Deploy no Render
+
+### Pré-requisitos
+
+1. Repositório no GitHub conectado ao Render
+2. Banco MySQL no Render (ou externo)
+3. Schema `db.sql` aplicado no MySQL de produção
+
+### Blueprint (recomendado)
+
+O arquivo [`render.yaml`](render.yaml) na raiz configura Web Service + MySQL automaticamente:
+
+```bash
+# No dashboard Render: New → Blueprint → conectar repositório
+```
+
+### Web Service manual
+
+| Campo                 | Valor                        |
+| --------------------- | ---------------------------- |
+| **Runtime**           | Node                         |
+| **Build Command**     | `pnpm install && pnpm build` |
+| **Start Command**     | `pnpm start`                 |
+| **Health Check Path** | `/health`                    |
+
+### Variáveis de ambiente (produção)
+
+| Variável              | Obrigatória | Descrição                               |
+| --------------------- | ----------- | --------------------------------------- |
+| `NODE_ENV`            | Sim         | `production`                            |
+| `HOST`                | Sim         | `0.0.0.0`                               |
+| `PORT`                | Não         | Render injeta automaticamente           |
+| `DB_HOST`             | Sim         | Host do MySQL Render                    |
+| `DB_PORT`             | Sim         | `3306`                                  |
+| `DB_USER`             | Sim         | Usuário do banco                        |
+| `DB_PASSWORD`         | Sim         | Senha do banco                          |
+| `DB_NAME`             | Sim         | `tickets`                               |
+| `JWT_SECRET`          | Sim         | Segredo forte (não use o padrão)        |
+| `HUSKY`               | Recomendado | `0` (evita hook no CI/Render)           |
+| `RENDER_EXTERNAL_URL` | Auto        | Injetado pelo Render — usado no Swagger |
+| `CORS_ORIGIN`         | Não         | Planejado (ainda não implementado)      |
+
+### Aplicar schema no MySQL Render
+
+Execute o conteúdo de `db.sql` no banco via Shell do Render ou cliente MySQL externo.
+
+### Validar após deploy
+
+```bash
+curl https://seu-servico.onrender.com/health
+curl https://seu-servico.onrender.com/ready
+```
+
+Resposta esperada do health:
+
+```json
+{ "status": "ok", "database": "connected", "timestamp": "..." }
+```
+
+### Swagger público
+
+Documentação interativa disponível **sem autenticação**:
+
+```
+https://seu-servico.onrender.com/docs
+```
+
+No Swagger UI, use **Authorize** com `Bearer <token>` após login para testar rotas protegidas.
+
+---
+
 ## Configuração (.env)
 
 ```bash
@@ -238,6 +309,7 @@ SELECT ticket_id, from_status, to_status FROM ticket_status_history ORDER BY cha
 | Concorrência + transações                      | ✅     |
 | Testes + E2E + cobertura                       | ✅     |
 | Docker + deploy                                | ✅     |
+| Deploy Render (Node + Swagger público)         | ✅     |
 | Clean Architecture (5 módulos)                 | ✅     |
 | CI/CD · Rate limit · CORS · Helmet             | 🔜     |
 

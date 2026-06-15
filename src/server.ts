@@ -3,6 +3,8 @@ import { env, validateProductionEnv } from './config/env.js'
 import { Database } from './database.js'
 import { startReleaseExpiredReservationsJob } from './jobs/release-expired-reservations-job.js'
 
+const PORT = Number(process.env.PORT) || 3000
+
 async function bootstrap(): Promise<void> {
   validateProductionEnv()
 
@@ -17,8 +19,8 @@ async function bootstrap(): Promise<void> {
     process.exit(1)
   }
 
-  app.listen(env.port, env.host, () => {
-    console.log(`[startup] Ticket Sales API listening on ${env.host}:${env.port}`)
+  app.listen(PORT, env.host, () => {
+    console.log(`[startup] Ticket Sales API listening on ${env.host}:${PORT}`)
     console.log(`[startup] NODE_ENV=${env.nodeEnv}`)
     console.log('[startup] Health: /health | Readiness: /ready | Docs: /docs')
 

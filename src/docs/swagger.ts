@@ -1,5 +1,7 @@
 import swaggerJSDoc, { type Options } from 'swagger-jsdoc'
 
+import { env } from '../config/env.js'
+
 const swaggerOptions: Options = {
   definition: {
     openapi: '3.0.4',
@@ -11,8 +13,8 @@ const swaggerOptions: Options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Servidor local'
+        url: env.apiBaseUrl,
+        description: env.isProduction ? 'Produção (Render)' : 'Servidor local'
       }
     ],
     components: {

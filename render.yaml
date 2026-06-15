@@ -1,17 +1,18 @@
 services:
   - type: web
     name: ticket-sales-api
-    runtime: docker
-    dockerfilePath: ./Dockerfile
+    runtime: node
     plan: free
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: HOST
         value: 0.0.0.0
-      - key: PORT
-        value: 3000
+      - key: HUSKY
+        value: '0'
       - key: JWT_SECRET
         generateValue: true
       - key: DB_HOST

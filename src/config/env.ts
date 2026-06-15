@@ -34,12 +34,24 @@ export function validateProductionEnv(): void {
   }
 }
 
+function resolveApiBaseUrl(): string {
+  const configured = process.env.API_BASE_URL ?? process.env.RENDER_EXTERNAL_URL
+
+  if (configured) {
+    return configured.replace(/\/$/, '')
+  }
+
+  const port = process.env.PORT ?? '3000'
+  return `http://localhost:${port}`
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   isProduction,
   port: Number(process.env.PORT ?? 3000),
   host: process.env.HOST ?? '0.0.0.0',
   jwtSecret: process.env.JWT_SECRET ?? DEFAULT_JWT_SECRET,
+  apiBaseUrl: resolveApiBaseUrl(),
   db: {
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 3307),

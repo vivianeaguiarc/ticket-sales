@@ -2,6 +2,7 @@ import * as mysql from 'mysql2/promise'
 
 import { env } from './config/env.js'
 
+/** Pool MySQL configurado via variáveis de ambiente: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME */
 export class Database {
   private static instance: mysql.Pool
 

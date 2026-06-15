@@ -49,6 +49,15 @@ describe('app routes', () => {
     })
   })
 
+  test('deve permitir acesso à rota /docs sem token', async () => {
+    const response = await request(app).get('/docs/')
+
+    expect(response.status).not.toBe(401)
+    expect(response.body).not.toEqual({
+      message: 'No token provided'
+    })
+  })
+
   test('deve permitir acesso à rota /ready sem token', async () => {
     const response = await request(app).get('/ready')
 
