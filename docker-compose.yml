@@ -1,10 +1,23 @@
 services:
   mysql:
     image: mysql:8.0.30-debian
+    container_name: ticket-sales-mysql
+    restart: unless-stopped
     environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=tickets
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_NAME:-tickets}
     ports:
-      - '3307:3306'
+      - '${DB_PORT:-3307}:3306'
     volumes:
-      - ./db.sql:/docker-entrypoint-initdb.d/db.sql
+      - mysql_data:/var/lib/mysql
+      - ./db.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${DB_PASSWORD:-root}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql_data:

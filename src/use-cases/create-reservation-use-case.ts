@@ -1,16 +1,18 @@
 import { Database } from '../database.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
 import { TicketModel, TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
 
 interface Input {
   customer_id: number
+  user_id: number
   ticket_ids: number[]
 }
 
 export class CreateReservationUseCase {
   static async execute(input: Input) {
-    const { customer_id, ticket_ids } = input
+    const { customer_id, user_id, ticket_ids } = input
 
     if (!ticket_ids || ticket_ids.length === 0) {
       throw new Error('ticket_ids is required')
@@ -60,6 +62,22 @@ export class CreateReservationUseCase {
 
         reservations.push(reservation)
       }
+
+      await AuditLogModel.create(
+        {
+          user_id,
+          action: AuditAction.TICKETS_RESERVED,
+          entity_type: AuditEntityType.reservation,
+          entity_id: reservations[0]?.id ?? null,
+          new_data: {
+            customer_id,
+            ticket_ids,
+            reservation_ids: reservations.map((reservation) => reservation.id),
+            status: ReservationStatus.reserved
+          }
+        },
+        { connection }
+      )
 
       await connection.commit()
 

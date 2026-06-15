@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { Database } from '../database.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
@@ -29,6 +30,7 @@ describe('CancelPurchaseUseCase', () => {
   const createHistoryMock = vi.spyOn(TicketStatusHistoryModel, 'create')
   const findReservationsMock = vi.spyOn(ReservationTicketModel, 'findAll')
   const markAsCancelledMock = vi.spyOn(ReservationTicketModel, 'markAsCancelled')
+  const createAuditLogMock = vi.spyOn(AuditLogModel, 'create')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -47,6 +49,7 @@ describe('CancelPurchaseUseCase', () => {
     releaseIfSoldMock.mockResolvedValue(true)
     createHistoryMock.mockResolvedValue({} as never)
     markAsCancelledMock.mockResolvedValue(undefined)
+    createAuditLogMock.mockResolvedValue({} as never)
   })
 
   test('deve cancelar uma compra com sucesso', async () => {
@@ -68,7 +71,7 @@ describe('CancelPurchaseUseCase', () => {
       { id: 5, customer_id: 1, ticket_id: 101, status: ReservationStatus.reserved }
     ] as never)
 
-    await CancelPurchaseUseCase.execute({ purchase_id: 10 })
+    await CancelPurchaseUseCase.execute({ purchase_id: 10, user_id: 5 })
 
     expect(findPurchaseByIdMock).toHaveBeenCalledWith(10, {
       connection,
@@ -93,13 +96,32 @@ describe('CancelPurchaseUseCase', () => {
     expect(markAsCancelledMock).toHaveBeenCalledWith(5, { connection })
     expect(purchase.status).toBe(PurchaseStatus.cancelled)
     expect(purchase.update).toHaveBeenCalledWith({ connection })
+    expect(createAuditLogMock).toHaveBeenCalledWith(
+      {
+        user_id: 5,
+        action: AuditAction.PURCHASE_CANCELLED,
+        entity_type: AuditEntityType.purchase,
+        entity_id: 10,
+        old_data: {
+          status: PurchaseStatus.paid,
+          customer_id: 1,
+          ticket_ids: [101, 102]
+        },
+        new_data: {
+          status: PurchaseStatus.cancelled,
+          customer_id: 1,
+          ticket_ids: [101, 102]
+        }
+      },
+      { connection }
+    )
     expect(commitMock).toHaveBeenCalled()
     expect(rollbackMock).not.toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalled()
   })
 
   test('deve lançar erro se purchase_id não for informado', async () => {
-    await expect(CancelPurchaseUseCase.execute({ purchase_id: 0 })).rejects.toThrow(
+    await expect(CancelPurchaseUseCase.execute({ purchase_id: 0, user_id: 5 })).rejects.toThrow(
       'Purchase id is required'
     )
   })
@@ -107,7 +129,7 @@ describe('CancelPurchaseUseCase', () => {
   test('deve lançar erro se purchase não for encontrada', async () => {
     findPurchaseByIdMock.mockResolvedValue(null)
 
-    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10 })).rejects.toThrow(
+    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10, user_id: 5 })).rejects.toThrow(
       'Purchase not found'
     )
 
@@ -124,7 +146,7 @@ describe('CancelPurchaseUseCase', () => {
       })
     )
 
-    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10 })).rejects.toThrow(
+    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10, user_id: 5 })).rejects.toThrow(
       'Purchase already cancelled'
     )
 
@@ -143,7 +165,7 @@ describe('CancelPurchaseUseCase', () => {
     )
     findPurchaseTicketsMock.mockResolvedValue([])
 
-    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10 })).rejects.toThrow(
+    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10, user_id: 5 })).rejects.toThrow(
       'Purchase tickets not found'
     )
 
@@ -162,7 +184,7 @@ describe('CancelPurchaseUseCase', () => {
     findPurchaseTicketsMock.mockResolvedValue([{ id: 1, purchase_id: 10, ticket_id: 101 }] as never)
     releaseIfSoldMock.mockRejectedValue(new Error('Ticket update failed'))
 
-    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10 })).rejects.toThrow(
+    await expect(CancelPurchaseUseCase.execute({ purchase_id: 10, user_id: 5 })).rejects.toThrow(
       'Ticket update failed'
     )
 

@@ -26,7 +26,8 @@ ticketRoutes.post('/:eventId/tickets', async (req, res) => {
   await ticketService.createMany({
     eventId: +eventId,
     numTickets: num_tickets,
-    price
+    price,
+    userId
   })
 
   res.status(204).send()
@@ -144,7 +145,8 @@ ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
     const { purchaseId } = req.params
 
     await CancelPurchaseUseCase.execute({
-      purchase_id: +purchaseId
+      purchase_id: +purchaseId,
+      user_id: req.user!.id
     })
 
     res.status(204).send()

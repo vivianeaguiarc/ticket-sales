@@ -22,6 +22,34 @@ available → reserved → sold
 
 - Cancelamentos e expirações de reserva restauram o ticket para `available`.
 - Toda mudança relevante de status é registrada em `ticket_status_history`.
+- Ações importantes do sistema são registradas em `audit_logs` (criação de eventos/tickets, reservas, compras, cancelamentos e expirações).
+
+### Audit logs
+
+A tabela `audit_logs` registra eventos de negócio e técnicos para rastreabilidade e auditoria:
+
+| Action                | Entity        | Quando                                       |
+| --------------------- | ------------- | -------------------------------------------- |
+| `EVENT_CREATED`       | `event`       | Parceiro cria um evento                      |
+| `TICKETS_CREATED`     | `ticket`      | Parceiro cria tickets em lote                |
+| `TICKETS_RESERVED`    | `reservation` | Cliente reserva tickets                      |
+| `RESERVATION_EXPIRED` | `reservation` | Job libera reserva expirada (`user_id` nulo) |
+| `PURCHASE_CREATED`    | `purchase`    | Cliente compra tickets                       |
+| `PURCHASE_CANCELLED`  | `purchase`    | Compra é cancelada                           |
+
+Cada registro pode incluir `user_id`, `entity_id`, `old_data` e `new_data` (JSON) com o contexto da operação. Os audit logs são gravados na mesma transação da operação principal.
+
+Consulta no MySQL:
+
+```sql
+SELECT * FROM audit_logs ORDER BY created_at DESC;
+```
+
+Filtrar por ação:
+
+```sql
+SELECT * FROM audit_logs WHERE action = 'PURCHASE_CREATED' ORDER BY created_at DESC;
+```
 
 ### Tickets
 
@@ -189,7 +217,7 @@ Arquivos de apoio na raiz:
 
 - Node.js 20+ (recomendado 24)
 - pnpm 10+
-- MySQL 8+
+- Docker + Docker Compose **ou** MySQL 8+ instalado localmente
 
 ### Passos
 
@@ -197,25 +225,66 @@ Arquivos de apoio na raiz:
 git clone <url-do-repositorio>
 cd ticket-sales
 pnpm install
+cp .env.example .env
 ```
 
 ---
 
 ## Configuração do banco (MySQL)
 
-### 1. Criar banco
+### Opção A — Docker Compose (recomendado)
+
+Sobe MySQL 8 na porta **3307**, cria o banco `tickets` e aplica o `db.sql` automaticamente na primeira inicialização.
+
+```bash
+# subir em background
+docker compose up -d
+
+# ver status e healthcheck
+docker compose ps
+
+# acompanhar logs
+docker compose logs -f mysql
+```
+
+Conferir tabelas:
+
+```bash
+docker exec -it ticket-sales-mysql mysql -uroot -proot tickets -e "SHOW TABLES;"
+```
+
+Parar o banco:
+
+```bash
+docker compose down
+```
+
+Recriar do zero (apaga dados e reaplica o schema):
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+> O script `db.sql` em `docker-entrypoint-initdb.d` só roda quando o volume `mysql_data` é criado pela primeira vez. Para aplicar mudanças no schema em um banco já existente, use `docker compose down -v` ou aplique o SQL manualmente.
+
+As variáveis `DB_PORT`, `DB_PASSWORD` e `DB_NAME` do `.env` são usadas pelo Compose (valores padrão: `3307`, `root`, `tickets`).
+
+### Opção B — MySQL local
+
+#### 1. Criar banco
 
 ```sql
 CREATE DATABASE tickets;
 ```
 
-### 2. Aplicar schema
+#### 2. Aplicar schema
 
 ```bash
 mysql -u root -p -P 3307 < db.sql
 ```
 
-### 3. Configuração atual da conexão
+### Conexão da API
 
 No estado atual, a conexão está em `src/database.ts`:
 
@@ -271,13 +340,13 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-Atualmente: **279 testes** cobrindo controllers, use cases, services, models e jobs.
+Atualmente: **290 testes** cobrindo controllers, use cases, services, models e jobs.
 
 ---
 
 ## Como testar com api.http
 
-1. Suba o MySQL e aplique `db.sql`.
+1. Suba o MySQL: `docker compose up -d` (ou use MySQL local + `db.sql`).
 2. Execute `pnpm dev`.
 3. Abra `api.http` no VS Code/Cursor com REST Client.
 4. Execute os blocos **na ordem numérica** (1 → 12).
@@ -290,7 +359,9 @@ Atualmente: **279 testes** cobrindo controllers, use cases, services, models e j
 ## Comandos úteis
 
 ```bash
-pnpm dev           # API em desenvolvimento
+docker compose up -d   # MySQL (porta 3307)
+docker compose down    # parar banco
+pnpm dev               # API em desenvolvimento
 pnpm test            # testes
 pnpm test:coverage   # cobertura
 pnpm lint            # ESLint
@@ -315,9 +386,11 @@ pnpm build           # compilar TypeScript
 | Compra e cancelamento                 | Implementado                  |
 | Controle de concorrência              | Implementado                  |
 | Histórico de status                   | Implementado                  |
-| Testes automatizados                  | Implementado (279 testes)     |
+| Audit logs                            | Implementado                  |
+| Testes automatizados                  | Implementado                  |
 | Swagger                               | Básico (endpoints principais) |
 | Variáveis de ambiente                 | Parcial (hardcoded em código) |
+| Docker Compose (MySQL)                | Implementado                  |
 | Deploy / CI                           | Não configurado               |
 
 **Maturidade:** projeto de portfólio **intermediário**, com fundamentos sólidos de backend e espaço claro para evolução em produção.
@@ -331,7 +404,7 @@ pnpm build           # compilar TypeScript
 - Adicionar pipeline CI (lint + test + build)
 - Testes de integração com MySQL real (Testcontainers)
 - Lock distribuído para job de expiração em multi-instância
-- Docker Compose (API + MySQL)
+- Docker Compose com serviço da API (hoje só MySQL; API roda no host)
 - Pagamento real (hoje `PaymentService` é simulado no `PurchaseService`)
 
 ---

@@ -67,6 +67,7 @@ describe('purchaseRoutes', () => {
     expect(mockFindByUserId).toHaveBeenCalledWith(1)
     expect(mockCreatePurchaseExecute).toHaveBeenCalledWith({
       customer_id: 10,
+      user_id: 1,
       ticket_ids: [1, 2]
     })
   })
@@ -133,7 +134,7 @@ describe('purchaseRoutes', () => {
     expect(response.body).toEqual({
       message: 'Purchase cancelled successfully'
     })
-    expect(mockCancel).toHaveBeenCalledWith(1)
+    expect(mockCancel).toHaveBeenCalledWith(1, 1)
   })
 
   it('should return 404 when purchase is not found', async () => {

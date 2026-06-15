@@ -101,8 +101,8 @@ export class PurchaseService {
     }
   }
 
-  async cancel(purchaseId: number): Promise<void> {
-    await CancelPurchaseUseCase.execute({ purchase_id: purchaseId })
+  async cancel(purchaseId: number, userId: number): Promise<void> {
+    await CancelPurchaseUseCase.execute({ purchase_id: purchaseId, user_id: userId })
   }
 
   private async associateTicketsWithPurchase(

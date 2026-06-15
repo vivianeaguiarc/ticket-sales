@@ -461,9 +461,9 @@ describe('PurchaseService', () => {
 
       cancelPurchaseExecuteMock.mockResolvedValue(undefined)
 
-      await purchaseService.cancel(99)
+      await purchaseService.cancel(99, 5)
 
-      expect(cancelPurchaseExecuteMock).toHaveBeenCalledWith({ purchase_id: 99 })
+      expect(cancelPurchaseExecuteMock).toHaveBeenCalledWith({ purchase_id: 99, user_id: 5 })
     })
 
     test('deve propagar erro do use case', async () => {
@@ -471,7 +471,7 @@ describe('PurchaseService', () => {
 
       cancelPurchaseExecuteMock.mockRejectedValue(new Error('Purchase not found'))
 
-      await expect(purchaseService.cancel(99)).rejects.toThrow('Purchase not found')
+      await expect(purchaseService.cancel(99, 5)).rejects.toThrow('Purchase not found')
     })
   })
 

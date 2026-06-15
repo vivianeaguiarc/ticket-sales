@@ -1,4 +1,5 @@
 import { Database } from '../database.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
@@ -7,11 +8,12 @@ import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.
 
 interface Input {
   purchase_id: number
+  user_id: number
 }
 
 export class CancelPurchaseUseCase {
   static async execute(input: Input): Promise<void> {
-    const { purchase_id } = input
+    const { purchase_id, user_id } = input
 
     if (!purchase_id) {
       throw new Error('Purchase id is required')
@@ -83,6 +85,26 @@ export class CancelPurchaseUseCase {
 
       purchase.status = PurchaseStatus.cancelled
       await purchase.update({ connection })
+
+      await AuditLogModel.create(
+        {
+          user_id,
+          action: AuditAction.PURCHASE_CANCELLED,
+          entity_type: AuditEntityType.purchase,
+          entity_id: purchase.id,
+          old_data: {
+            status: PurchaseStatus.paid,
+            customer_id: purchase.customer_id,
+            ticket_ids: ticketIds
+          },
+          new_data: {
+            status: PurchaseStatus.cancelled,
+            customer_id: purchase.customer_id,
+            ticket_ids: ticketIds
+          }
+        },
+        { connection }
+      )
 
       await connection.commit()
     } catch (error) {

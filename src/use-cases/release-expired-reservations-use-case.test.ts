@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Database } from '../database.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
 import { TicketModel, TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
@@ -25,6 +26,7 @@ describe('ReleaseExpiredReservationsUseCase', () => {
   const releaseIfReservedMock = vi.spyOn(TicketModel, 'releaseIfReserved')
   const createHistoryMock = vi.spyOn(TicketStatusHistoryModel, 'create')
   const markAsCancelledMock = vi.spyOn(ReservationTicketModel, 'markAsCancelled')
+  const createAuditLogMock = vi.spyOn(AuditLogModel, 'create')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -44,6 +46,7 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     releaseIfReservedMock.mockResolvedValue(true)
     createHistoryMock.mockResolvedValue({} as never)
     markAsCancelledMock.mockResolvedValue(undefined)
+    createAuditLogMock.mockResolvedValue({} as never)
   })
 
   it('deve liberar reservas expiradas com sucesso', async () => {
@@ -86,6 +89,26 @@ describe('ReleaseExpiredReservationsUseCase', () => {
     expect(markAsCancelledMock).toHaveBeenCalledWith(expiredReservation.id, {
       connection
     })
+
+    expect(createAuditLogMock).toHaveBeenCalledWith(
+      {
+        user_id: null,
+        action: AuditAction.RESERVATION_EXPIRED,
+        entity_type: AuditEntityType.reservation,
+        entity_id: expiredReservation.id,
+        old_data: {
+          status: ReservationStatus.reserved,
+          ticket_id: expiredReservation.ticket_id,
+          expires_at: expiredReservation.expires_at
+        },
+        new_data: {
+          status: ReservationStatus.cancelled,
+          ticket_id: expiredReservation.ticket_id,
+          ticket_released: true
+        }
+      },
+      { connection }
+    )
 
     expect(commitMock).toHaveBeenCalledTimes(1)
     expect(rollbackMock).not.toHaveBeenCalled()

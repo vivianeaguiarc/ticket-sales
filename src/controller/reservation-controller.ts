@@ -22,6 +22,7 @@ reservationRoutes.post('/', async (req: Request, res: Response) => {
 
     const reservations = await CreateReservationUseCase.execute({
       customer_id: customer.id,
+      user_id: req.user!.id,
       ticket_ids
     })
 

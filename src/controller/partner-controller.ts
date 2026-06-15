@@ -29,7 +29,8 @@ partnerRoutes.post('/events', async (req, res) => {
     description,
     date: new Date(date),
     location,
-    partnerId: partner.id
+    partnerId: partner.id,
+    userId
   })
 
   res.status(201).json(result)

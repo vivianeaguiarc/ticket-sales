@@ -114,7 +114,8 @@ describe('TicketController', () => {
     expect(createManyMock).toHaveBeenCalledWith({
       eventId: 1,
       numTickets: 10,
-      price: 150
+      price: 150,
+      userId: 1
     })
   })
 
@@ -353,7 +354,8 @@ describe('TicketController', () => {
     expect(response.status).toBe(204)
     expect(response.text).toBe('')
     expect(cancelPurchaseExecuteMock).toHaveBeenCalledWith({
-      purchase_id: 10
+      purchase_id: 10,
+      user_id: 1
     })
   })
 

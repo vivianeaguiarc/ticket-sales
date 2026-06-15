@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Database } from '../database.js'
-import { PurchaseModel } from '../models/purchase-model.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
+import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { TicketModel, TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
@@ -27,6 +28,7 @@ describe('CreatePurchaseUseCase', () => {
   let createPurchaseMock: ReturnType<typeof vi.spyOn>
   let createHistoryMock: ReturnType<typeof vi.spyOn>
   let createPurchaseTicketMock: ReturnType<typeof vi.spyOn>
+  let createAuditLogMock: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -52,11 +54,13 @@ describe('CreatePurchaseUseCase', () => {
     createPurchaseTicketMock = vi
       .spyOn(PurchaseTicketModel, 'create')
       .mockResolvedValue({} as never)
+    createAuditLogMock = vi.spyOn(AuditLogModel, 'create').mockResolvedValue({} as never)
   })
 
   it('deve comprar tickets disponíveis com sucesso', async () => {
     const result = await CreatePurchaseUseCase.execute({
       customer_id: 1,
+      user_id: 10,
       ticket_ids: [1, 2]
     })
 
@@ -69,6 +73,21 @@ describe('CreatePurchaseUseCase', () => {
     expect(createPurchaseMock).toHaveBeenCalledTimes(1)
     expect(createPurchaseTicketMock).toHaveBeenCalledTimes(2)
     expect(createHistoryMock).toHaveBeenCalledTimes(2)
+    expect(createAuditLogMock).toHaveBeenCalledWith(
+      {
+        user_id: 10,
+        action: AuditAction.PURCHASE_CREATED,
+        entity_type: AuditEntityType.purchase,
+        entity_id: 10,
+        new_data: {
+          customer_id: 1,
+          ticket_ids: [1, 2],
+          total_amount: 200,
+          status: PurchaseStatus.paid
+        }
+      },
+      { connection }
+    )
     expect(commitMock).toHaveBeenCalled()
     expect(rollbackMock).not.toHaveBeenCalled()
     expect(releaseMock).toHaveBeenCalled()
@@ -78,6 +97,7 @@ describe('CreatePurchaseUseCase', () => {
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
+        user_id: 10,
         ticket_ids: []
       })
     ).rejects.toThrow('ticket_ids is required')
@@ -89,6 +109,7 @@ describe('CreatePurchaseUseCase', () => {
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
+        user_id: 10,
         ticket_ids: [1, 2]
       })
     ).rejects.toThrow('Some tickets not found')
@@ -105,6 +126,7 @@ describe('CreatePurchaseUseCase', () => {
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
+        user_id: 10,
         ticket_ids: [1]
       })
     ).rejects.toThrow('Ticket 1 is not available')
@@ -120,6 +142,7 @@ describe('CreatePurchaseUseCase', () => {
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
+        user_id: 10,
         ticket_ids: [1]
       })
     ).rejects.toThrow('DB error')
@@ -142,6 +165,7 @@ describe('CreatePurchaseUseCase', () => {
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
+        user_id: 10,
         ticket_ids: [1, 2]
       })
     ).rejects.toThrow('Ticket 2 is not available')
@@ -149,6 +173,22 @@ describe('CreatePurchaseUseCase', () => {
     expect(sellIfAvailableMock).toHaveBeenCalledTimes(2)
     expect(createPurchaseMock).not.toHaveBeenCalled()
     expect(createPurchaseTicketMock).not.toHaveBeenCalled()
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
+  })
+
+  it('deve fazer rollback se audit log falhar', async () => {
+    createAuditLogMock.mockRejectedValue(new Error('Audit log failed'))
+
+    await expect(
+      CreatePurchaseUseCase.execute({
+        customer_id: 1,
+        user_id: 10,
+        ticket_ids: [1, 2]
+      })
+    ).rejects.toThrow('Audit log failed')
+
+    expect(createAuditLogMock).toHaveBeenCalled()
     expect(rollbackMock).toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
   })

@@ -114,7 +114,8 @@ describe('PartnerController', () => {
       description: 'Descrição teste',
       date: new Date('2027-07-01T10:00:00.000Z'),
       location: 'São Paulo',
-      partnerId: 99
+      partnerId: 99,
+      userId: 1
     })
   })
 

@@ -1,4 +1,5 @@
 import { Database } from '../database.js'
+import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
 import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { TicketModel, TicketStatus } from '../models/ticket-model.js'
@@ -6,12 +7,13 @@ import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.
 
 interface Input {
   customer_id: number
+  user_id: number
   ticket_ids: number[]
 }
 
 export class CreatePurchaseUseCase {
   static async execute(input: Input) {
-    const { customer_id, ticket_ids } = input
+    const { customer_id, user_id, ticket_ids } = input
 
     if (!ticket_ids || ticket_ids.length === 0) {
       throw new Error('ticket_ids is required')
@@ -71,6 +73,22 @@ export class CreatePurchaseUseCase {
           { connection }
         )
       }
+
+      await AuditLogModel.create(
+        {
+          user_id,
+          action: AuditAction.PURCHASE_CREATED,
+          entity_type: AuditEntityType.purchase,
+          entity_id: purchase.id,
+          new_data: {
+            customer_id,
+            ticket_ids: tickets.map((ticket) => ticket.id),
+            total_amount,
+            status: PurchaseStatus.paid
+          }
+        },
+        { connection }
+      )
 
       await connection.commit()
 

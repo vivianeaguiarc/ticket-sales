@@ -42,6 +42,7 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
 
     const purchase = await CreatePurchaseUseCase.execute({
       customer_id: customer.id,
+      user_id: req.user!.id,
       ticket_ids
     })
 
@@ -78,7 +79,7 @@ purchaseRoutes.post('/:id/cancel', async (req: Request, res: Response) => {
 
     const purchaseService = new PurchaseService(new PaymentService())
 
-    await purchaseService.cancel(Number(req.params.id))
+    await purchaseService.cancel(Number(req.params.id), req.user!.id)
 
     console.log('🟢 [purchaseRoutes.cancel] compra cancelada com sucesso')
 

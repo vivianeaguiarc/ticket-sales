@@ -172,3 +172,27 @@ CREATE TABLE IF NOT EXISTS `ticket_status_history` (
     ON DELETE NO ACTION
     ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
+
+-- =========================================================
+-- 🔟 AUDIT_LOGS
+-- =========================================================
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `user_id` INT NULL,
+  `action` VARCHAR(100) NOT NULL,
+  `entity_type` VARCHAR(100) NOT NULL,
+  `entity_id` INT NULL,
+  `old_data` JSON NULL,
+  `new_data` JSON NULL,
+  `created_at` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_audit_logs_user_id` (`user_id` ASC) VISIBLE,
+  INDEX `idx_audit_logs_action` (`action` ASC) VISIBLE,
+  INDEX `idx_audit_logs_entity` (`entity_type` ASC, `entity_id` ASC) VISIBLE,
+  INDEX `idx_audit_logs_created_at` (`created_at` ASC) VISIBLE,
+  CONSTRAINT `fk_audit_logs_users`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
