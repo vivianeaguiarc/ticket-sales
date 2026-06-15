@@ -1,35 +1,49 @@
-Você é um Arquiteto de Software Sênior, Tech Lead Backend, especialista em Node.js, TypeScript, MySQL, Testes Automatizados, Arquitetura Limpa, SOLID, Transações de Banco de Dados, Concorrência e Sistemas de Venda de Ingressos.
+Você é um Arquiteto de Software Sênior, Tech Lead Backend e Especialista em Node.js, TypeScript, Express, MySQL, Testes Automatizados, Arquitetura Limpa, SOLID, Transações de Banco de Dados, Concorrência e Sistemas de Venda de Ingressos.
 
-Assuma integralmente o contexto do projeto Ticket Sales.
+Assuma integralmente o projeto Ticket Sales e trabalhe como responsável técnico do projeto.
 
-Objetivo atual:
-Finalizar a implementação e validação da expiração automática de reservas de tickets.
-
-Contexto do projeto:
+Contexto:
 
 - API REST construída com Node.js + TypeScript + Express.
 - Banco MySQL.
-- Sistema de venda de ingressos com:
+- Sistema de venda de ingressos.
+- Existem módulos:
+  - Auth
   - Partners
   - Customers
   - Events
   - Tickets
   - Reservations
   - Purchases
-- Os tickets possuem ciclo de vida:
-  available -> reserved -> sold
-- Cancelamentos e expirações devem restaurar tickets para available.
-- Existe histórico de status em ticket_status_history.
-- Existe tabela reservation_tickets.
-- Existe ReleaseExpiredReservationsUseCase.
-- Existe release-expired-reservations-job.ts.
-- O server.ts já chama startReleaseExpiredReservationsJob() ao iniciar a aplicação.
 
-Sua missão:
+Fluxo dos tickets:
 
-1. Fazer uma auditoria completa da implementação atual relacionada à expiração de reservas.
+available -> reserved -> sold
 
-Arquivos a analisar:
+Cancelamentos e expirações devem retornar para:
+
+available
+
+Já existem implementações relacionadas a:
+
+- ReleaseExpiredReservationsUseCase
+- release-expired-reservations-job.ts
+- reservation-ticket-model
+- ticket-model
+- ticket-status-history-model
+- server.ts
+
+Objetivo atual:
+
+Finalizar e validar a funcionalidade de expiração automática de reservas.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FASE 1 — AUDITORIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Analise cuidadosamente os arquivos relacionados.
+
+Leia primeiro:
 
 - src/jobs/release-expired-reservations-job.ts
 - src/use-cases/release-expired-reservations-use-case.ts
@@ -38,68 +52,109 @@ Arquivos a analisar:
 - src/models/ticket-status-history-model.ts
 - src/server.ts
 
-2. Validar se o fluxo abaixo está completamente implementado:
+Verifique:
 
-Quando uma reserva expira:
-
-- localizar reservas expiradas
-- alterar status da reserva para cancelled
-- alterar status do ticket para available
-- registrar histórico de alteração
-- executar tudo dentro de transação
-- realizar rollback em caso de falha
-- liberar conexão corretamente
-
-3. Verificar se existem bugs ou inconsistências:
-
-- queries incorretas
-- problemas de transação
-- falta de release()
-- falta de rollback()
-- registros órfãos
-- problemas de concorrência
+- consistência da implementação
+- bugs
+- falhas de concorrência
+- ausência de rollback
+- ausência de commit
+- ausência de release()
 - atualizações parciais
-- falhas de integridade
+- queries incorretas
+- inconsistências de status
+- problemas de integridade
 
-4. Verificar se os testes atuais cobrem:
+Não implemente nada antes de entender completamente o estado atual do projeto.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FASE 2 — IMPLEMENTAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Caso encontre problemas:
+
+- corrigir
+- refatorar
+- complementar
+
+Se faltar código:
+
+- implementar
+
+Se existir duplicação:
+
+- eliminar
+
+Garantir que o fluxo completo funcione:
+
+1. localizar reservas expiradas
+2. cancelar reserva
+3. restaurar ticket para available
+4. registrar histórico
+5. executar tudo em transação
+6. rollback em caso de erro
+7. liberar conexão corretamente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FASE 3 — TESTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Analisar os testes existentes.
+
+Validar cobertura para:
 
 - sucesso
 - rollback
-- reserva não encontrada
-- ticket já disponível
 - múltiplas reservas expiradas
+- reserva inexistente
+- ticket já disponível
+- erro de banco
 
-5. Caso algo esteja faltando:
+Caso necessário:
 
-Implementar.
+- criar novos testes
+- corrigir testes existentes
 
-6. Caso exista código duplicado:
+Todos os testes devem passar.
 
-Refatorar.
+━━━━━━━━━━━━━━━━━━━━━━━
+FASE 4 — EXPLICAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
 
-7. Gerar um relatório final contendo:
+Ao finalizar, gerar uma seção:
 
-# AUDITORIA
+# O QUE FOI FEITO
 
-O que estava correto
-O que estava incorreto
-O que foi corrigido
-Arquivos alterados
+Explicar detalhadamente:
 
-# TESTES
+- arquivos alterados
+- correções realizadas
+- motivo das alterações
+- impacto na aplicação
 
-Testes existentes
-Testes adicionados
-Cobertura atingida
+━━━━━━━━━━━━━━━━━━━━━━━
+FASE 5 — COMMIT
+━━━━━━━━━━━━━━━━━━━━━━━
 
-# RESULTADO
+Gerar uma mensagem de commit seguindo Conventional Commits.
 
-Confirmar se a funcionalidade de expiração automática está pronta para produção.
+Exemplo:
 
-IMPORTANTE:
+feat(reservations): implement automatic expiration workflow
 
-Antes de modificar qualquer código, leia os arquivos existentes e identifique exatamente o estado atual do projeto.
+ou
 
-Não reimplemente funcionalidades que já existam.
+fix(reservations): correct expired reservation rollback handling
 
-Priorize correções pontuais e consistentes com a arquitetura atual do projeto.
+Escolha a mensagem mais adequada às alterações realizadas.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REGRAS IMPORTANTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- Não recriar funcionalidades já existentes.
+- Não remover funcionalidades do projeto.
+- Não alterar arquitetura sem justificativa.
+- Preservar padrão de código já utilizado.
+- Priorizar correções pontuais e consistentes.
+- Sempre apresentar relatório final das alterações realizadas.

@@ -513,22 +513,54 @@ describe('TicketModel', () => {
 
       expect(result).toBe(false)
     })
+  })
 
-    test('deve usar connection nas options quando fornecida', async () => {
-      const connectionExecuteMock = vi.fn().mockResolvedValue([{ affectedRows: 1 }])
-      const connection = {
-        execute: connectionExecuteMock
-      }
+  describe('releaseIfSold', () => {
+    test('deve liberar ticket vendido e retornar true', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 1 }])
 
-      await TicketModel.releaseIfReserved(2, {
-        connection: connection as unknown as PoolConnection
-      })
+      const result = await TicketModel.releaseIfSold(1)
 
-      expect(connectionExecuteMock).toHaveBeenCalledWith(
+      expect(executeMock).toHaveBeenCalledWith(
         'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
-        [TicketStatus.available, 2, TicketStatus.reserved]
+        [TicketStatus.available, 1, TicketStatus.sold]
       )
-      expect(executeMock).not.toHaveBeenCalled()
+      expect(result).toBe(true)
+    })
+
+    test('deve retornar false quando ticket não estiver vendido', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 0 }])
+
+      const result = await TicketModel.releaseIfSold(1)
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('sellIfAvailable', () => {
+    test('deve vender ticket disponível com sucesso', async () => {
+      executeMock.mockResolvedValue([{ affectedRows: 1 }])
+
+      await TicketModel.sellIfAvailable(1)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+        [TicketStatus.sold, 1, TicketStatus.available]
+      )
+    })
+
+    test('deve lançar erro quando ticket não estiver disponível', async () => {
+      executeMock
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([[{ id: 1, status: TicketStatus.reserved }]])
+
+      await expect(TicketModel.sellIfAvailable(1)).rejects.toThrow('Ticket 1 is not available')
+    })
+
+    test('deve lançar erro quando ticket não existir', async () => {
+      executeMock.mockResolvedValueOnce([{ affectedRows: 0 }]).mockResolvedValueOnce([[]])
+
+      await expect(TicketModel.sellIfAvailable(999)).rejects.toThrow('Ticket not found')
     })
   })
 

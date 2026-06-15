@@ -186,6 +186,28 @@ export class TicketModel {
     }
   }
 
+  static async sellIfAvailable(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<void> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+      [TicketStatus.sold, id, TicketStatus.available]
+    )
+
+    if (result.affectedRows === 0) {
+      const ticket = await TicketModel.findById(id, { connection: options?.connection })
+
+      if (!ticket) {
+        throw new Error('Ticket not found')
+      }
+
+      throw new Error(`Ticket ${id} is not available`)
+    }
+  }
+
   static async markAsAvailable(
     id: number,
     options?: { connection?: PoolConnection }
@@ -211,6 +233,20 @@ export class TicketModel {
     const [result] = await db.execute<ResultSetHeader>(
       'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
       [TicketStatus.available, id, TicketStatus.reserved]
+    )
+
+    return result.affectedRows > 0
+  }
+
+  static async releaseIfSold(
+    id: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<boolean> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [result] = await db.execute<ResultSetHeader>(
+      'UPDATE tickets SET status = ? WHERE id = ? AND status = ?',
+      [TicketStatus.available, id, TicketStatus.sold]
     )
 
     return result.affectedRows > 0

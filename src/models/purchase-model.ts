@@ -45,10 +45,18 @@ export class PurchaseModel {
     return purchase
   }
 
-  static async findById(id: number): Promise<PurchaseModel | null> {
-    const db = Database.getInstance()
+  static async findById(
+    id: number,
+    options?: { connection?: PoolConnection; forUpdate?: boolean }
+  ): Promise<PurchaseModel | null> {
+    const db = options?.connection ?? Database.getInstance()
 
-    const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM purchases WHERE id = ?', [id])
+    let query = 'SELECT * FROM purchases WHERE id = ?'
+    if (options?.forUpdate) {
+      query += ' FOR UPDATE'
+    }
+
+    const [rows] = await db.execute<RowDataPacket[]>(query, [id])
 
     return rows.length ? new PurchaseModel(rows[0] as PurchaseModel) : null
   }

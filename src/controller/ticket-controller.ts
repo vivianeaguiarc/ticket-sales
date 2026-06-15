@@ -155,8 +155,16 @@ ticketRoutes.delete('/purchases/:purchaseId', async (req, res) => {
         return
       }
 
-      if (error.message === 'Purchase tickets not found') {
+      if (
+        error.message === 'Purchase not found' ||
+        error.message === 'Purchase tickets not found'
+      ) {
         res.status(404).json({ message: error.message })
+        return
+      }
+
+      if (error.message === 'Purchase already cancelled') {
+        res.status(409).json({ message: error.message })
         return
       }
     }

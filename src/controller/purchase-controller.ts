@@ -91,6 +91,11 @@ purchaseRoutes.post('/:id/cancel', async (req: Request, res: Response) => {
         res.status(404).json({ message: error.message })
         return
       }
+
+      if (error.message === 'Purchase already cancelled') {
+        res.status(409).json({ message: error.message })
+        return
+      }
     }
 
     res.status(500).json({ message: 'Internal server error' })

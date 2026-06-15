@@ -6,6 +6,7 @@ import { PurchaseModel, PurchaseStatus } from '../models/purchase-model.js'
 import { PurchaseTicketModel } from '../models/purchase-ticket-model.js'
 import { ReservationStatus, ReservationTicketModel } from '../models/reservation-ticket-model.js'
 import { TicketModel } from '../models/ticket-model.js'
+import { CancelPurchaseUseCase } from '../use-cases/cancel-purchase-use-case.js'
 import { PaymentService } from './payment-service.js'
 
 export class PurchaseService {
@@ -101,55 +102,7 @@ export class PurchaseService {
   }
 
   async cancel(purchaseId: number): Promise<void> {
-    const purchase = await PurchaseModel.findById(purchaseId)
-
-    if (!purchase) {
-      throw new Error('Purchase not found')
-    }
-
-    if (purchase.status === PurchaseStatus.cancelled) {
-      throw new Error('Purchase already cancelled')
-    }
-
-    const purchaseTickets = await PurchaseTicketModel.findAll({
-      where: { purchase_id: purchaseId }
-    })
-
-    const ticketIds = purchaseTickets.map((purchaseTicket) => purchaseTicket.ticket_id)
-
-    const reservations = await ReservationTicketModel.findAll({
-      where: {
-        customer_id: purchase.customer_id,
-        ticket_id: ticketIds,
-        status: ReservationStatus.reserved
-      }
-    })
-
-    const db = Database.getInstance()
-    const connection = await db.getConnection()
-
-    try {
-      await connection.beginTransaction()
-
-      for (const ticketId of ticketIds) {
-        await TicketModel.markAsAvailable(ticketId, { connection })
-      }
-
-      for (const reservation of reservations) {
-        reservation.status = ReservationStatus.cancelled
-        await reservation.update({ connection })
-      }
-
-      purchase.status = PurchaseStatus.cancelled
-      await purchase.update({ connection })
-
-      await connection.commit()
-    } catch (error) {
-      await connection.rollback()
-      throw error
-    } finally {
-      connection.release()
-    }
+    await CancelPurchaseUseCase.execute({ purchase_id: purchaseId })
   }
 
   private async associateTicketsWithPurchase(

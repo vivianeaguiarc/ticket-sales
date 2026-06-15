@@ -135,4 +135,60 @@ describe('purchaseRoutes', () => {
     })
     expect(mockCancel).toHaveBeenCalledWith(1)
   })
+
+  it('should return 404 when purchase is not found', async () => {
+    mockCancel.mockRejectedValue(new Error('Purchase not found'))
+
+    const app = await makeApp()
+
+    const response = await request(app).post('/partners/events/purchases/999/cancel').send()
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ message: 'Purchase not found' })
+  })
+
+  it('should return 409 when purchase is already cancelled', async () => {
+    mockCancel.mockRejectedValue(new Error('Purchase already cancelled'))
+
+    const app = await makeApp()
+
+    const response = await request(app).post('/partners/events/purchases/1/cancel').send()
+
+    expect(response.status).toBe(409)
+    expect(response.body).toEqual({ message: 'Purchase already cancelled' })
+  })
+
+  it('should return 404 when tickets are not found', async () => {
+    mockFindByUserId.mockResolvedValue({ id: 10 })
+    mockCreatePurchaseExecute.mockRejectedValue(new Error('Some tickets not found'))
+
+    const app = await makeApp()
+
+    const response = await request(app)
+      .post('/partners/events/purchases')
+      .send({
+        ticket_ids: [1, 2],
+        card_token: 'card_token_test'
+      })
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ message: 'Some tickets not found' })
+  })
+
+  it('should return 409 when ticket is not available', async () => {
+    mockFindByUserId.mockResolvedValue({ id: 10 })
+    mockCreatePurchaseExecute.mockRejectedValue(new Error('Ticket 1 is not available'))
+
+    const app = await makeApp()
+
+    const response = await request(app)
+      .post('/partners/events/purchases')
+      .send({
+        ticket_ids: [1],
+        card_token: 'card_token_test'
+      })
+
+    expect(response.status).toBe(409)
+    expect(response.body).toEqual({ message: 'Ticket 1 is not available' })
+  })
 })

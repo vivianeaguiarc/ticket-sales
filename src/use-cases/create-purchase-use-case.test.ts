@@ -46,7 +46,7 @@ describe('CreatePurchaseUseCase', () => {
 
     vi.spyOn(PurchaseModel, 'create').mockResolvedValue({ id: 10 } as never)
 
-    const markAsSoldSpy = vi.spyOn(TicketModel, 'markAsSold').mockResolvedValue(undefined)
+    const sellIfAvailableSpy = vi.spyOn(TicketModel, 'sellIfAvailable').mockResolvedValue(undefined)
 
     const historySpy = vi
       .spyOn(TicketStatusHistoryModel, 'create')
@@ -65,9 +65,11 @@ describe('CreatePurchaseUseCase', () => {
     expect(commitMock).toHaveBeenCalled()
     expect(result.id).toBe(10)
 
-    expect(markAsSoldSpy).toHaveBeenCalledTimes(2)
-    expect(historySpy).toHaveBeenCalledTimes(2)
     expect(purchaseTicketSpy).toHaveBeenCalledTimes(2)
+    expect(sellIfAvailableSpy).toHaveBeenCalledTimes(2)
+    expect(historySpy).toHaveBeenCalledTimes(2)
+    expect(sellIfAvailableSpy).toHaveBeenNthCalledWith(1, 1, { connection })
+    expect(sellIfAvailableSpy).toHaveBeenNthCalledWith(2, 2, { connection })
   })
 
   it('deve lançar erro se ticket_ids estiver vazio', async () => {
@@ -79,20 +81,45 @@ describe('CreatePurchaseUseCase', () => {
     ).rejects.toThrow('ticket_ids is required')
   })
 
+  it('deve lançar erro se ticket não for encontrado', async () => {
+    vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
+      { id: 1, status: TicketStatus.available, price: 100 }
+    ] as never)
+
+    await expect(
+      CreatePurchaseUseCase.execute({
+        customer_id: 1,
+        ticket_ids: [1, 2]
+      })
+    ).rejects.toThrow('Some tickets not found')
+
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
+  })
+
   it('deve lançar erro se ticket não estiver disponível', async () => {
     vi.spyOn(TicketModel, 'findAll').mockResolvedValue([
-      { id: 1, status: TicketStatus.sold, price: 100 }
+      { id: 1, status: TicketStatus.available, price: 100 }
     ] as never)
+
+    vi.spyOn(PurchaseModel, 'create').mockResolvedValue({ id: 10 } as never)
+    vi.spyOn(PurchaseTicketModel, 'create').mockResolvedValue(undefined as never)
+    vi.spyOn(TicketModel, 'sellIfAvailable').mockRejectedValue(
+      new Error('Ticket 1 is not available')
+    )
 
     await expect(
       CreatePurchaseUseCase.execute({
         customer_id: 1,
         ticket_ids: [1]
       })
-    ).rejects.toThrow('not available')
+    ).rejects.toThrow('Ticket 1 is not available')
+
+    expect(rollbackMock).toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
   })
 
-  it('deve fazer rollback se ocorrer erro', async () => {
+  it('deve fazer rollback se ocorrer erro de banco', async () => {
     vi.spyOn(TicketModel, 'findAll').mockRejectedValue(new Error('DB error'))
 
     await expect(
@@ -100,9 +127,10 @@ describe('CreatePurchaseUseCase', () => {
         customer_id: 1,
         ticket_ids: [1]
       })
-    ).rejects.toThrow()
+    ).rejects.toThrow('DB error')
 
     expect(rollbackMock).toHaveBeenCalled()
     expect(commitMock).not.toHaveBeenCalled()
+    expect(releaseMock).toHaveBeenCalled()
   })
 })
