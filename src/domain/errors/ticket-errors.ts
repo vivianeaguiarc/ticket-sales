@@ -19,9 +19,4 @@ export class InvalidTicketStatusTransitionError extends Error {
   }
 }
 
-export class EventNotFoundError extends Error {
-  constructor() {
-    super('Event not found')
-    this.name = 'EventNotFoundError'
-  }
-}
+export { EventNotFoundError } from './event-errors.js'

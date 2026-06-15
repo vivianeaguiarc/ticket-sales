@@ -195,6 +195,57 @@ HTTP Request
   → MySQL
 ```
 
+## Módulo migrado: Events
+
+Fluxos migrados:
+
+- **Criação** (`POST /partners/events`)
+- **Listagem pública** (`GET /events`)
+- **Busca pública** (`GET /events/:eventId`)
+- **Listagem do partner** (`GET /partners/events`)
+- **Busca do partner** (`GET /partners/events/:eventId`)
+
+### Componentes criados/estendidos
+
+| Camada      | Arquivo                                                | Responsabilidade                                |
+| ----------- | ------------------------------------------------------ | ----------------------------------------------- |
+| Domain      | `domain/entities/event.ts`                             | Entidade `Event`                                |
+| Domain      | `domain/errors/event-errors.ts`                        | Erros de evento e acesso                        |
+| Domain      | `domain/repositories/event-repository.ts`              | Port CRUD de eventos                            |
+| Application | `application/use-cases/create-event-use-case.ts`       | Criação transacional com audit                  |
+| Application | `application/use-cases/get-events-use-case.ts`         | Listagem pública                                |
+| Application | `application/use-cases/get-partner-events-use-case.ts` | Listagem por partner                            |
+| Application | `application/use-cases/get-event-by-id-use-case.ts`    | Busca por id                                    |
+| Infra       | `infra/repositories/mysql-event-repository.ts`         | Adapter MySQL completo                          |
+| Infra       | `infra/composition/event-factory.ts`                   | Composition root + `getSharedEventRepository()` |
+| Shared      | `shared/mappers/event-mapper.ts`                       | Domínio → `EventModel` (API)                    |
+| Legado      | `services/event-service.ts`                            | Facade; `getHistory` ainda legado               |
+
+### Dependências com Tickets
+
+`ticket-factory` reutiliza `getSharedEventRepository()` para validar existência do evento na criação de tickets.
+
+### O que ainda está legado (Events)
+
+| Componente                | Situação                                            |
+| ------------------------- | --------------------------------------------------- |
+| `EventService.getHistory` | Consulta direta a models de histórico/audit         |
+| `PartnerService`          | Autenticação de partner permanece em service legado |
+| `EventModel`              | Encapsulado pelo adapter; SQL não reescrito         |
+
+### Fluxo após migração Events
+
+```
+HTTP Request
+  → event-controller / partner-controller
+  → getCreateEventUseCase() / getGetEventsUseCase() / ...
+  → Application use case
+  → EventRepository / AuditLogRepository [interfaces]
+  → MysqlEventRepository [infra]
+  → EventModel [legado]
+  → MySQL
+```
+
 ### Decisões técnicas
 
 - **TransactionManager como port**: use case não conhece `PoolConnection`
@@ -209,13 +260,14 @@ HTTP Request
 | 1    | Reservas (`CreateReservationUseCase`)                       | ✅ Concluído |
 | 2    | Compras (`CreatePurchaseUseCase` / `CancelPurchaseUseCase`) | ✅ Concluído |
 | 3    | Tickets (CRUD + transições via `TicketRepository`)          | ✅ Concluído |
-| 4    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
-| 5    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
-| 6    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
-| 7    | Eventos (`EventService`)                                    | Pendente     |
-| 8    | Auth, partners, customers                                   | Pendente     |
-| 9    | Jobs (expiração de reservas)                                | Pendente     |
-| 10   | Mover controllers para `presentation/`                      | Pendente     |
+| 4    | Events (CRUD + consultas via `EventRepository`)             | ✅ Concluído |
+| 5    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
+| 6    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
+| 7    | `EventService.getHistory`                                   | Pendente     |
+| 8    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
+| 9    | Auth, partners, customers                                   | Pendente     |
+| 10   | Jobs (expiração de reservas)                                | Pendente     |
+| 11   | Mover controllers para `presentation/`                      | Pendente     |
 
 ### Próximo passo recomendado
 

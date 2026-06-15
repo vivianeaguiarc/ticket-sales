@@ -1,7 +1,13 @@
 import { Router } from 'express'
 
+import {
+  getCreateEventUseCase,
+  getGetEventByIdUseCase,
+  getGetPartnerEventsUseCase
+} from '../infra/composition/event-factory.js'
 import { EventService } from '../services/event-service.js'
 import { PartnerService } from '../services/partner-service.js'
+import { toEventModel, toEventModels } from '../shared/mappers/event-mapper.js'
 
 export const partnerRoutes = Router()
 
@@ -23,8 +29,7 @@ partnerRoutes.post('/events', async (req, res) => {
     return
   }
 
-  const eventService = new EventService()
-  const result = await eventService.create({
+  const event = await getCreateEventUseCase().execute({
     name,
     description,
     date: new Date(date),
@@ -33,7 +38,7 @@ partnerRoutes.post('/events', async (req, res) => {
     userId
   })
 
-  res.status(201).json(result)
+  res.status(201).json(toEventModel(event))
 })
 
 partnerRoutes.get('/events', async (req, res) => {
@@ -46,9 +51,9 @@ partnerRoutes.get('/events', async (req, res) => {
     return
   }
 
-  const eventService = new EventService()
-  const result = await eventService.findAll(partner.id)
-  res.json(result)
+  const events = await getGetPartnerEventsUseCase().execute({ partnerId: partner.id })
+
+  res.json(toEventModels(events))
 })
 
 partnerRoutes.get('/events/:eventId', async (req, res) => {
@@ -62,15 +67,14 @@ partnerRoutes.get('/events/:eventId', async (req, res) => {
     return
   }
 
-  const eventService = new EventService()
-  const event = await eventService.findById(+eventId)
+  const event = await getGetEventByIdUseCase().execute({ eventId: +eventId })
 
-  if (!event || event.partner_id !== partner.id) {
+  if (!event || event.partnerId !== partner.id) {
     res.status(404).json({ message: 'Event not found' })
     return
   }
 
-  res.json(event)
+  res.json(toEventModel(event))
 })
 
 partnerRoutes.get('/events/:eventId/history', async (req, res) => {
@@ -84,19 +88,20 @@ partnerRoutes.get('/events/:eventId/history', async (req, res) => {
     return
   }
 
-  const eventService = new EventService()
-  const event = await eventService.findById(+eventId)
+  const event = await getGetEventByIdUseCase().execute({ eventId: +eventId })
 
   if (!event) {
     res.status(404).json({ message: 'Event not found' })
     return
   }
 
-  if (event.partner_id !== partner.id) {
+  if (event.partnerId !== partner.id) {
     res.status(403).json({ message: 'Not authorized' })
     return
   }
 
+  const eventService = new EventService()
   const history = await eventService.getHistory(+eventId)
+
   res.json(history)
 })

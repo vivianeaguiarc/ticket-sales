@@ -39,13 +39,29 @@ vi.mock('../database.js', () => ({
   }
 }))
 
-vi.mock('../models/event-model.js', () => ({
-  EventModel: {
-    create: createEventMock,
-    findAll: vi.fn(),
-    findById: vi.fn()
+vi.mock('../models/event-model.js', () => {
+  class EventModelMock {
+    id: number
+    partner_id: number
+    name: string
+    description: string | null
+    date: Date
+    location: string
+    created_at: Date
+
+    constructor(data: Partial<EventModelMock> = {}) {
+      Object.assign(this, data)
+    }
+
+    static create = createEventMock
+    static findAll = vi.fn()
+    static findById = vi.fn()
   }
-}))
+
+  return {
+    EventModel: EventModelMock
+  }
+})
 
 vi.mock('../models/audit-log-model.js', () => ({
   AuditAction: {
@@ -104,13 +120,15 @@ describe('EventService', () => {
         userId: 5
       }
 
-      const mockEvent = {
+      createEventMock.mockResolvedValue({
         id: 10,
+        partner_id: input.partnerId,
+        name: input.name,
+        description: input.description,
         date: input.date,
+        location: input.location,
         created_at: new Date()
-      }
-
-      createEventMock.mockResolvedValue(mockEvent)
+      })
 
       const result = await eventService.create(input)
 
@@ -131,6 +149,7 @@ describe('EventService', () => {
           action: 'EVENT_CREATED',
           entity_type: 'event',
           entity_id: 10,
+          old_data: null,
           new_data: {
             partner_id: input.partnerId,
             name: input.name,
@@ -145,14 +164,12 @@ describe('EventService', () => {
       expect(rollbackMock).not.toHaveBeenCalled()
       expect(releaseMock).toHaveBeenCalled()
 
-      expect(result).toEqual({
-        id: mockEvent.id,
+      expect(result).toMatchObject({
+        id: 10,
         partner_id: input.partnerId,
         name: input.name,
         description: input.description,
-        date: mockEvent.date,
-        location: input.location,
-        created_at: mockEvent.created_at
+        location: input.location
       })
     })
 

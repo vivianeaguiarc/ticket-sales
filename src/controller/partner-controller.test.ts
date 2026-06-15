@@ -2,20 +2,22 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+import { Event } from '../domain/entities/event.js'
+
 const {
   registerMock,
   findByUserIdMock,
-  createEventMock,
-  findAllEventsMock,
-  findEventByIdMock,
+  createEventExecuteMock,
+  getPartnerEventsExecuteMock,
+  getEventByIdExecuteMock,
   getEventHistoryMock
 } = vi.hoisted(() => {
   return {
     registerMock: vi.fn(),
     findByUserIdMock: vi.fn(),
-    createEventMock: vi.fn(),
-    findAllEventsMock: vi.fn(),
-    findEventByIdMock: vi.fn(),
+    createEventExecuteMock: vi.fn(),
+    getPartnerEventsExecuteMock: vi.fn(),
+    getEventByIdExecuteMock: vi.fn(),
     getEventHistoryMock: vi.fn()
   }
 })
@@ -29,16 +31,23 @@ vi.mock('../services/partner-service.js', () => {
   }
 })
 
-vi.mock('../services/event-service.js', () => {
-  return {
-    EventService: class {
-      create = createEventMock
-      findAll = findAllEventsMock
-      findById = findEventByIdMock
-      getHistory = getEventHistoryMock
-    }
+vi.mock('../infra/composition/event-factory.js', () => ({
+  getCreateEventUseCase: () => ({
+    execute: createEventExecuteMock
+  }),
+  getGetPartnerEventsUseCase: () => ({
+    execute: getPartnerEventsExecuteMock
+  }),
+  getGetEventByIdUseCase: () => ({
+    execute: getEventByIdExecuteMock
+  })
+}))
+
+vi.mock('../services/event-service.js', () => ({
+  EventService: class {
+    getHistory = getEventHistoryMock
   }
-})
+}))
 
 import { partnerRoutes } from './partner-controller.js'
 
@@ -93,18 +102,18 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvent = {
-      id: 1,
-      partner_id: 99,
-      name: 'Evento Teste',
-      description: 'Descrição teste',
-      date: '2027-07-01T10:00:00.000Z',
-      location: 'São Paulo',
-      created_at: '2026-03-29T10:00:00.000Z'
-    }
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    createEventMock.mockResolvedValue(mockEvent)
+    createEventExecuteMock.mockResolvedValue(
+      new Event(
+        1,
+        99,
+        'Evento Teste',
+        'Descrição teste',
+        new Date('2027-07-01T10:00:00.000Z'),
+        'São Paulo',
+        new Date('2026-03-29T10:00:00.000Z')
+      )
+    )
 
     const response = await request(app).post('/partners/events').send({
       name: 'Evento Teste',
@@ -114,10 +123,15 @@ describe('PartnerController', () => {
     })
 
     expect(response.status).toBe(201)
-    expect(response.body).toEqual(mockEvent)
+    expect(response.body).toMatchObject({
+      id: 1,
+      partner_id: 99,
+      name: 'Evento Teste',
+      location: 'São Paulo'
+    })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(createEventMock).toHaveBeenCalledWith({
+    expect(createEventExecuteMock).toHaveBeenCalledWith({
       name: 'Evento Teste',
       description: 'Descrição teste',
       date: new Date('2027-07-01T10:00:00.000Z'),
@@ -143,7 +157,7 @@ describe('PartnerController', () => {
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(createEventMock).not.toHaveBeenCalled()
+    expect(createEventExecuteMock).not.toHaveBeenCalled()
   })
 
   test('deve listar eventos do partner com sucesso', async () => {
@@ -153,29 +167,20 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvents = [
-      {
-        id: 1,
-        partner_id: 99,
-        name: 'Evento 1'
-      },
-      {
-        id: 2,
-        partner_id: 99,
-        name: 'Evento 2'
-      }
-    ]
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findAllEventsMock.mockResolvedValue(mockEvents)
+    getPartnerEventsExecuteMock.mockResolvedValue([
+      new Event(1, 99, 'Evento 1', null, new Date(), 'SP', new Date()),
+      new Event(2, 99, 'Evento 2', null, new Date(), 'RJ', new Date())
+    ])
 
     const response = await request(app).get('/partners/events')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual(mockEvents)
+    expect(response.body).toHaveLength(2)
+    expect(response.body[0]).toMatchObject({ id: 1, partner_id: 99, name: 'Evento 1' })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findAllEventsMock).toHaveBeenCalledWith(99)
+    expect(getPartnerEventsExecuteMock).toHaveBeenCalledWith({ partnerId: 99 })
   })
 
   test('deve retornar 403 ao listar eventos sem autorização de partner', async () => {
@@ -189,7 +194,7 @@ describe('PartnerController', () => {
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findAllEventsMock).not.toHaveBeenCalled()
+    expect(getPartnerEventsExecuteMock).not.toHaveBeenCalled()
   })
 
   test('deve retornar evento por id com sucesso quando pertencer ao partner', async () => {
@@ -199,22 +204,18 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvent = {
-      id: 1,
-      partner_id: 99,
-      name: 'Evento Teste'
-    }
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 99, 'Evento Teste', null, new Date(), 'SP', new Date())
+    )
 
     const response = await request(app).get('/partners/events/1')
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual(mockEvent)
+    expect(response.body).toMatchObject({ id: 1, partner_id: 99, name: 'Evento Teste' })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findEventByIdMock).toHaveBeenCalledWith(1)
+    expect(getEventByIdExecuteMock).toHaveBeenCalledWith({ eventId: 1 })
   })
 
   test('deve retornar 404 quando evento não existir', async () => {
@@ -225,7 +226,7 @@ describe('PartnerController', () => {
     }
 
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(null)
+    getEventByIdExecuteMock.mockResolvedValue(null)
 
     const response = await request(app).get('/partners/events/999')
 
@@ -235,7 +236,7 @@ describe('PartnerController', () => {
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findEventByIdMock).toHaveBeenCalledWith(999)
+    expect(getEventByIdExecuteMock).toHaveBeenCalledWith({ eventId: 999 })
   })
 
   test('deve retornar 404 quando evento pertencer a outro partner', async () => {
@@ -245,14 +246,10 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvent = {
-      id: 1,
-      partner_id: 123,
-      name: 'Evento de Outro Partner'
-    }
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 123, 'Evento de Outro Partner', null, new Date(), 'SP', new Date())
+    )
 
     const response = await request(app).get('/partners/events/1')
 
@@ -262,7 +259,7 @@ describe('PartnerController', () => {
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findEventByIdMock).toHaveBeenCalledWith(1)
+    expect(getEventByIdExecuteMock).toHaveBeenCalledWith({ eventId: 1 })
   })
 
   test('deve retornar 403 ao buscar evento por id sem autorização de partner', async () => {
@@ -276,7 +273,7 @@ describe('PartnerController', () => {
     })
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
-    expect(findEventByIdMock).not.toHaveBeenCalled()
+    expect(getEventByIdExecuteMock).not.toHaveBeenCalled()
   })
 
   test('deve retornar histórico do evento com sucesso', async () => {
@@ -284,12 +281,6 @@ describe('PartnerController', () => {
       id: 99,
       user_id: 1,
       company_name: 'Minha Empresa'
-    }
-
-    const mockEvent = {
-      id: 1,
-      partner_id: 99,
-      name: 'Evento Teste'
     }
 
     const mockHistory = [
@@ -310,7 +301,9 @@ describe('PartnerController', () => {
     ]
 
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 99, 'Evento Teste', null, new Date(), 'SP', new Date())
+    )
     getEventHistoryMock.mockResolvedValue(mockHistory)
 
     const response = await request(app).get('/partners/events/1/history')
@@ -328,7 +321,7 @@ describe('PartnerController', () => {
     }
 
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(null)
+    getEventByIdExecuteMock.mockResolvedValue(null)
 
     const response = await request(app).get('/partners/events/999/history')
 
@@ -344,14 +337,10 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvent = {
-      id: 1,
-      partner_id: 123,
-      name: 'Evento de Outro Partner'
-    }
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 123, 'Evento de Outro Partner', null, new Date(), 'SP', new Date())
+    )
 
     const response = await request(app).get('/partners/events/1/history')
 
@@ -367,14 +356,10 @@ describe('PartnerController', () => {
       company_name: 'Minha Empresa'
     }
 
-    const mockEvent = {
-      id: 1,
-      partner_id: 99,
-      name: 'Evento Teste'
-    }
-
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 99, 'Evento Teste', null, new Date(), 'SP', new Date())
+    )
     getEventHistoryMock.mockResolvedValue([])
 
     const response = await request(app).get('/partners/events/1/history')
@@ -388,12 +373,6 @@ describe('PartnerController', () => {
       id: 99,
       user_id: 1,
       company_name: 'Minha Empresa'
-    }
-
-    const mockEvent = {
-      id: 1,
-      partner_id: 99,
-      name: 'Evento Teste'
     }
 
     const mockHistory = [
@@ -414,7 +393,9 @@ describe('PartnerController', () => {
     ]
 
     findByUserIdMock.mockResolvedValue(mockPartner)
-    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventByIdExecuteMock.mockResolvedValue(
+      new Event(1, 99, 'Evento Teste', null, new Date(), 'SP', new Date())
+    )
     getEventHistoryMock.mockResolvedValue(mockHistory)
 
     const response = await request(app).get('/partners/events/1/history')

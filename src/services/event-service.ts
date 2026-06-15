@@ -1,8 +1,13 @@
-import { Database } from '../database.js'
+import {
+  getCreateEventUseCase,
+  getGetEventByIdUseCase,
+  getGetEventsUseCase,
+  getGetPartnerEventsUseCase
+} from '../infra/composition/event-factory.js'
 import { AuditAction, AuditEntityType, AuditLogModel } from '../models/audit-log-model.js'
-import { EventModel } from '../models/event-model.js'
 import { TicketStatus } from '../models/ticket-model.js'
 import { TicketStatusHistoryModel } from '../models/ticket-status-history-model.js'
+import { toEventModel, toEventModels } from '../shared/mappers/event-mapper.js'
 
 export type EventHistoryTicketStatusItem = {
   type: 'ticket_status_history'
@@ -22,6 +27,10 @@ export type EventHistoryAuditLogItem = {
 
 export type EventHistoryItem = EventHistoryTicketStatusItem | EventHistoryAuditLogItem
 
+/**
+ * Facade legado que delega operações principais para a application layer.
+ * getHistory permanece no service até migração futura do subfluxo de histórico.
+ */
 export class EventService {
   async create(data: {
     name: string
@@ -31,69 +40,34 @@ export class EventService {
     partnerId: number
     userId: number
   }) {
-    const { name, description, date, location, partnerId, userId } = data
+    const event = await getCreateEventUseCase().execute({
+      partnerId: data.partnerId,
+      userId: data.userId,
+      name: data.name,
+      description: data.description,
+      date: data.date,
+      location: data.location
+    })
 
-    const pool = Database.getInstance()
-    const connection = await pool.getConnection()
-
-    try {
-      await connection.beginTransaction()
-
-      const event = await EventModel.create(
-        {
-          partner_id: partnerId,
-          name,
-          description,
-          date,
-          location
-        },
-        { connection }
-      )
-
-      await AuditLogModel.create(
-        {
-          user_id: userId,
-          action: AuditAction.EVENT_CREATED,
-          entity_type: AuditEntityType.event,
-          entity_id: event.id,
-          new_data: {
-            partner_id: partnerId,
-            name,
-            description,
-            date,
-            location
-          }
-        },
-        { connection }
-      )
-
-      await connection.commit()
-
-      return {
-        id: event.id,
-        partner_id: partnerId,
-        name,
-        description,
-        date: event.date,
-        location,
-        created_at: event.created_at
-      }
-    } catch (error) {
-      await connection.rollback()
-      throw error
-    } finally {
-      connection.release()
-    }
+    return toEventModel(event)
   }
 
   async findAll(partnerId?: number) {
-    return EventModel.findAll({
-      where: { partner_id: partnerId }
-    })
+    if (partnerId !== undefined) {
+      const events = await getGetPartnerEventsUseCase().execute({ partnerId })
+
+      return toEventModels(events)
+    }
+
+    const events = await getGetEventsUseCase().execute()
+
+    return toEventModels(events)
   }
 
   async findById(eventId: number) {
-    return EventModel.findById(eventId)
+    const event = await getGetEventByIdUseCase().execute({ eventId })
+
+    return event ? toEventModel(event) : null
   }
 
   async getHistory(eventId: number): Promise<EventHistoryItem[]> {

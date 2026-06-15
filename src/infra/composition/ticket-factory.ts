@@ -3,8 +3,8 @@ import { GetEventTicketsUseCase } from '../../application/use-cases/get-event-ti
 import { GetTicketByIdUseCase } from '../../application/use-cases/get-ticket-by-id-use-case.js'
 import { MysqlTransactionManager } from '../database/mysql-transaction-manager.js'
 import { MysqlAuditLogRepository } from '../repositories/mysql-audit-log-repository.js'
-import { MysqlEventRepository } from '../repositories/mysql-event-repository.js'
 import { MysqlTicketRepository } from '../repositories/mysql-ticket-repository.js'
+import { getSharedEventRepository } from './event-factory.js'
 
 let createTicketsUseCase: CreateTicketsUseCase | null = null
 let getEventTicketsUseCase: GetEventTicketsUseCase | null = null
@@ -22,7 +22,7 @@ export function getSharedTicketRepository(): MysqlTicketRepository {
 export function getCreateTicketsUseCase(): CreateTicketsUseCase {
   if (!createTicketsUseCase) {
     createTicketsUseCase = new CreateTicketsUseCase({
-      eventRepository: new MysqlEventRepository(),
+      eventRepository: getSharedEventRepository(),
       ticketRepository: getSharedTicketRepository(),
       auditLogRepository: new MysqlAuditLogRepository(),
       transactionManager: new MysqlTransactionManager()
@@ -35,7 +35,7 @@ export function getCreateTicketsUseCase(): CreateTicketsUseCase {
 export function getGetEventTicketsUseCase(): GetEventTicketsUseCase {
   if (!getEventTicketsUseCase) {
     getEventTicketsUseCase = new GetEventTicketsUseCase({
-      eventRepository: new MysqlEventRepository(),
+      eventRepository: getSharedEventRepository(),
       ticketRepository: getSharedTicketRepository()
     })
   }

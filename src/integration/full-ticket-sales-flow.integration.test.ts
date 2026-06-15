@@ -1,6 +1,8 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+import { Event } from '../domain/entities/event.js'
+
 const state = {
   partnerUserId: 1,
   customerUserId: 2,
@@ -78,10 +80,19 @@ vi.mock('../services/auth-service.js', () => ({
   InvalidCredentialsError: class extends Error {}
 }))
 
-vi.mock('../services/event-service.js', () => ({
-  EventService: class {
-    create = eventCreateMock
-  }
+vi.mock('../infra/composition/event-factory.js', () => ({
+  getCreateEventUseCase: () => ({
+    execute: eventCreateMock
+  }),
+  getGetPartnerEventsUseCase: () => ({
+    execute: vi.fn()
+  }),
+  getGetEventByIdUseCase: () => ({
+    execute: vi.fn()
+  }),
+  getGetEventsUseCase: () => ({
+    execute: vi.fn()
+  })
 }))
 
 vi.mock('../services/ticket-service.js', () => ({
@@ -157,7 +168,17 @@ describe('Full ticket sales flow (integration)', () => {
     authLoginMock.mockResolvedValue('jwt-token-test')
     partnerFindByUserIdMock.mockResolvedValue({ id: 1, user_id: state.partnerUserId })
     customerFindByUserIdMock.mockResolvedValue({ id: 1, user_id: state.customerUserId })
-    eventCreateMock.mockResolvedValue({ id: state.eventId, name: 'Show' })
+    eventCreateMock.mockResolvedValue(
+      new Event(
+        state.eventId,
+        1,
+        'Rock Festival',
+        'Show',
+        new Date('2027-12-01T20:00:00.000Z'),
+        'São Paulo',
+        new Date()
+      )
+    )
     ticketCreateManyMock.mockResolvedValue(undefined)
     reserveTicketExecuteMock.mockResolvedValue([{ id: 1 }])
     purchaseTicketExecuteMock.mockResolvedValue({ id: state.purchaseId })
