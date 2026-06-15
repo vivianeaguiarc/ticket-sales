@@ -1,9 +1,11 @@
 import { Request, Response, Router } from 'express'
 
+import {
+  getCancelPurchaseUseCase,
+  getCreatePurchaseUseCase
+} from '../infra/composition/purchase-factory.js'
 import { CustomerService } from '../services/customer-service.js'
-import { PaymentService } from '../services/payment-service.js'
-import { PurchaseService } from '../services/purchase-service.js'
-import { CreatePurchaseUseCase } from '../use-cases/create-purchase-use-case.js'
+import { toPurchaseModel } from '../shared/mappers/purchase-mapper.js'
 
 export const purchaseRoutes = Router()
 
@@ -40,15 +42,15 @@ purchaseRoutes.post('/', async (req: Request, res: Response) => {
       return
     }
 
-    const purchase = await CreatePurchaseUseCase.execute({
-      customer_id: customer.id,
-      user_id: req.user!.id,
-      ticket_ids
+    const purchase = await getCreatePurchaseUseCase().execute({
+      customerId: customer.id,
+      userId: req.user!.id,
+      ticketIds: ticket_ids
     })
 
     console.log('🟢 [purchaseRoutes.create] purchase criada com sucesso:', purchase)
 
-    res.status(201).json(purchase)
+    res.status(201).json(toPurchaseModel(purchase))
   } catch (error) {
     console.error('🔴 [purchaseRoutes.create] erro completo:', error)
 
@@ -77,9 +79,10 @@ purchaseRoutes.post('/:id/cancel', async (req: Request, res: Response) => {
   try {
     console.log('🟡 [purchaseRoutes.cancel] id recebido:', req.params.id)
 
-    const purchaseService = new PurchaseService(new PaymentService())
-
-    await purchaseService.cancel(Number(req.params.id), req.user!.id)
+    await getCancelPurchaseUseCase().execute({
+      purchaseId: Number(req.params.id),
+      userId: req.user!.id
+    })
 
     console.log('🟢 [purchaseRoutes.cancel] compra cancelada com sucesso')
 

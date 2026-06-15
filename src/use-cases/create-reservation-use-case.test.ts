@@ -74,6 +74,7 @@ describe('CreateReservationUseCase', () => {
         action: AuditAction.TICKETS_RESERVED,
         entity_type: AuditEntityType.reservation,
         entity_id: 1,
+        old_data: null,
         new_data: {
           customer_id: 1,
           ticket_ids: [1, 2],

@@ -138,6 +138,8 @@ Documentação detalhada da migração: [docs/architecture.md](docs/architecture
 
 **Piloto concluído:** fluxo de criação de reserva (`CreateReservationUseCase`) com entidades de domínio, repositórios e transações desacoplados.
 
+**Módulo Purchases migrado:** criação e cancelamento de compras via Clean Architecture (`CreatePurchaseUseCase`, `CancelPurchaseUseCase`). Detalhes em [docs/architecture.md](docs/architecture.md).
+
 **Padrões adotados hoje:**
 
 - Controllers: entrada HTTP, validação básica, status codes.
@@ -403,7 +405,7 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-Atualmente: **341 testes** cobrindo controllers, use cases, application layer, repositories, models, jobs e fluxo HTTP integrado.
+Atualmente: **351 testes** cobrindo controllers, application layer, use cases, repositories, models, jobs e fluxo HTTP integrado.
 
 ---
 

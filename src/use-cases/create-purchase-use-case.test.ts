@@ -79,6 +79,7 @@ describe('CreatePurchaseUseCase', () => {
         action: AuditAction.PURCHASE_CREATED,
         entity_type: AuditEntityType.purchase,
         entity_id: 10,
+        old_data: null,
         new_data: {
           customer_id: 1,
           ticket_ids: [1, 2],

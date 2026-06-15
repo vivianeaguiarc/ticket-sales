@@ -77,7 +77,52 @@ Fluxo escolhido: **criação de reserva** (`POST /partners/events/reservations` 
 | Shared      | `shared/mappers/reservation-mapper.ts`                 | Domínio → `ReservationTicketModel` (API)                 |
 | Legado      | `use-cases/create-reservation-use-case.ts`             | Facade que delega à application layer                    |
 
-### Fluxo após migração piloto
+## Módulo migrado: Purchases
+
+Fluxos migrados:
+
+- **Criação de compra** (`POST /partners/events/purchases` via `purchase-controller`)
+- **Cancelamento de compra** (`POST /partners/events/purchases/:id/cancel`)
+
+### Componentes criados
+
+| Camada      | Arquivo                                                  | Responsabilidade                        |
+| ----------- | -------------------------------------------------------- | --------------------------------------- |
+| Domain      | `domain/entities/purchase.ts`                            | Entidade `Purchase`                     |
+| Domain      | `domain/entities/purchase-ticket.ts`                     | Entidade `PurchaseTicket`               |
+| Domain      | `domain/errors/purchase-errors.ts`                       | Erros de domínio de compra              |
+| Domain      | `domain/repositories/purchase-repository.ts`             | Port de persistência de compras         |
+| Domain      | `domain/repositories/purchase-ticket-repository.ts`      | Port de associação purchase_tickets     |
+| Application | `application/use-cases/create-purchase-use-case.ts`      | Compra transacional sem MySQL           |
+| Application | `application/use-cases/cancel-purchase-use-case.ts`      | Cancelamento com restauração de tickets |
+| Infra       | `infra/repositories/mysql-purchase-repository.ts`        | Adapter MySQL                           |
+| Infra       | `infra/repositories/mysql-purchase-ticket-repository.ts` | Adapter MySQL                           |
+| Infra       | `infra/composition/purchase-factory.ts`                  | Composition root                        |
+| Shared      | `shared/mappers/purchase-mapper.ts`                      | Domínio → `PurchaseModel` (API)         |
+| Legado      | `use-cases/create-purchase-use-case.ts`                  | Facade de criação                       |
+| Legado      | `use-cases/cancel-purchase-use-case.ts`                  | Facade de cancelamento                  |
+
+### O que ainda está legado (Purchases)
+
+| Componente                     | Situação                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `PurchaseService.create`       | Fluxo alternativo com pagamento simulado; não migrado                              |
+| `PurchaseTicketUseCase`        | Rota em `ticket-controller` (`POST /partners/events/purchases`); duplicata parcial |
+| `purchase-ticket-service.ts`   | Arquivo legado excluído do build                                                   |
+| Models (`PurchaseModel`, etc.) | Encapsulados por adapters; SQL não reescrito                                       |
+
+### Fluxo após migração Purchases
+
+```
+HTTP Request
+  → purchase-controller
+  → getCreatePurchaseUseCase() / getCancelPurchaseUseCase() [factory]
+  → CreatePurchaseUseCase / CancelPurchaseUseCase [application]
+  → PurchaseRepository / TicketRepository / ... [interfaces]
+  → MysqlPurchaseRepository / MysqlTicketRepository [infra]
+  → PurchaseModel / TicketModel [legado]
+  → MySQL
+```
 
 ```
 HTTP Request
@@ -99,24 +144,25 @@ HTTP Request
 
 ## Plano incremental de migração
 
-| Fase | Módulo                                                      | Status              |
-| ---- | ----------------------------------------------------------- | ------------------- |
-| 1    | Reservas (`CreateReservationUseCase`)                       | ✅ Piloto concluído |
-| 2    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo          |
-| 3    | Compras (`CreatePurchaseUseCase` / `PurchaseTicketUseCase`) | Pendente            |
-| 4    | Cancelamento de compras                                     | Pendente            |
-| 5    | Eventos e tickets (criação)                                 | Pendente            |
-| 6    | Auth, partners, customers                                   | Pendente            |
-| 7    | Jobs (expiração de reservas)                                | Pendente            |
-| 8    | Mover controllers para `presentation/`                      | Pendente            |
+| Fase | Módulo                                                      | Status       |
+| ---- | ----------------------------------------------------------- | ------------ |
+| 1    | Reservas (`CreateReservationUseCase`)                       | ✅ Concluído |
+| 2    | Compras (`CreatePurchaseUseCase` / `CancelPurchaseUseCase`) | ✅ Concluído |
+| 3    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
+| 4    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
+| 5    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
+| 6    | Eventos e tickets (criação)                                 | Pendente     |
+| 7    | Auth, partners, customers                                   | Pendente     |
+| 8    | Jobs (expiração de reservas)                                | Pendente     |
+| 9    | Mover controllers para `presentation/`                      | Pendente     |
 
 ### Próximo passo recomendado
 
-Unificar os dois fluxos de reserva:
+Unificar fluxos duplicados em `ticket-controller`:
 
-- `ReserveTicketUseCase` (rota real em `ticket-controller`) deve migrar para a mesma application layer
-- Resolver ordem de rotas em `app.ts` (`ticketRoutes` vs `reservationRoutes`)
-- Extrair validação HTTP para handlers finos na camada presentation
+- Migrar `ReserveTicketUseCase` para a application layer de reservas
+- Migrar `PurchaseTicketUseCase` para reutilizar `CreatePurchaseUseCase`
+- Resolver ordem de rotas em `app.ts` (`ticketRoutes` vs rotas dedicadas)
 
 ## Como testar o módulo piloto
 

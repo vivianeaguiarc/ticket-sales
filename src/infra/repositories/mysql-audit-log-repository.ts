@@ -16,6 +16,7 @@ export class MysqlAuditLogRepository implements AuditLogRepository {
         action: data.action,
         entity_type: data.entityType,
         entity_id: data.entityId,
+        old_data: data.oldData ?? null,
         new_data: data.newData
       },
       { connection }

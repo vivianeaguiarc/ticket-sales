@@ -4,7 +4,10 @@ import {
   ReservationRepository
 } from '../../domain/repositories/reservation-repository.js'
 import { RepositoryQueryOptions } from '../../domain/repositories/ticket-repository.js'
-import { ReservationTicketModel } from '../../models/reservation-ticket-model.js'
+import {
+  ReservationStatus as ModelReservationStatus,
+  ReservationTicketModel
+} from '../../models/reservation-ticket-model.js'
 import { resolveMysqlConnection } from '../database/mysql-transaction-scope.js'
 
 function toDomainReservation(model: ReservationTicketModel): Reservation {
@@ -35,5 +38,31 @@ export class MysqlReservationRepository implements ReservationRepository {
     )
 
     return toDomainReservation(reservation)
+  }
+
+  async findReservedByCustomerAndTickets(
+    customerId: number,
+    ticketIds: number[],
+    options?: RepositoryQueryOptions
+  ): Promise<Reservation[]> {
+    const connection = resolveMysqlConnection(options?.scope)
+    const reservations = await ReservationTicketModel.findAll(
+      {
+        where: {
+          customer_id: customerId,
+          ticket_id: ticketIds,
+          status: ModelReservationStatus.reserved
+        }
+      },
+      { connection }
+    )
+
+    return reservations.map(toDomainReservation)
+  }
+
+  async markAsCancelled(reservationId: number, options?: RepositoryQueryOptions): Promise<void> {
+    const connection = resolveMysqlConnection(options?.scope)
+
+    await ReservationTicketModel.markAsCancelled(reservationId, { connection })
   }
 }

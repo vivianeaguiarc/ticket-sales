@@ -2,9 +2,11 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Purchase, PurchaseStatus } from '../domain/entities/purchase.js'
+
 const mockFindByUserId = vi.fn()
-const mockCreatePurchaseExecute = vi.fn()
-const mockCancel = vi.fn()
+const mockCreateExecute = vi.fn()
+const mockCancelExecute = vi.fn()
 
 vi.mock('../services/customer-service.js', () => ({
   CustomerService: class {
@@ -12,20 +14,13 @@ vi.mock('../services/customer-service.js', () => ({
   }
 }))
 
-vi.mock('../use-cases/create-purchase-use-case.js', () => ({
-  CreatePurchaseUseCase: {
-    execute: mockCreatePurchaseExecute
-  }
-}))
-
-vi.mock('../services/payment-service.js', () => ({
-  PaymentService: class {}
-}))
-
-vi.mock('../services/purchase-service.js', () => ({
-  PurchaseService: class {
-    cancel = mockCancel
-  }
+vi.mock('../infra/composition/purchase-factory.js', () => ({
+  getCreatePurchaseUseCase: () => ({
+    execute: mockCreateExecute
+  }),
+  getCancelPurchaseUseCase: () => ({
+    execute: mockCancelExecute
+  })
 }))
 
 describe('purchaseRoutes', () => {
@@ -51,7 +46,9 @@ describe('purchaseRoutes', () => {
 
   it('should create purchase successfully', async () => {
     mockFindByUserId.mockResolvedValue({ id: 10 })
-    mockCreatePurchaseExecute.mockResolvedValue({ id: 1 })
+    const purchaseDate = new Date('2027-06-15T12:00:00.000Z')
+
+    mockCreateExecute.mockResolvedValue(new Purchase(1, 10, purchaseDate, 200, PurchaseStatus.paid))
 
     const app = await makeApp()
 
@@ -63,12 +60,17 @@ describe('purchaseRoutes', () => {
       })
 
     expect(response.status).toBe(201)
-    expect(response.body).toEqual({ id: 1 })
-    expect(mockFindByUserId).toHaveBeenCalledWith(1)
-    expect(mockCreatePurchaseExecute).toHaveBeenCalledWith({
+    expect(response.body).toMatchObject({
+      id: 1,
       customer_id: 10,
-      user_id: 1,
-      ticket_ids: [1, 2]
+      total_amount: 200,
+      status: PurchaseStatus.paid
+    })
+    expect(mockFindByUserId).toHaveBeenCalledWith(1)
+    expect(mockCreateExecute).toHaveBeenCalledWith({
+      customerId: 10,
+      userId: 1,
+      ticketIds: [1, 2]
     })
   })
 
@@ -106,7 +108,7 @@ describe('purchaseRoutes', () => {
 
   it('should return 500 if use case throws', async () => {
     mockFindByUserId.mockResolvedValue({ id: 10 })
-    mockCreatePurchaseExecute.mockRejectedValue(new Error('Internal error'))
+    mockCreateExecute.mockRejectedValue(new Error('Internal error'))
 
     const app = await makeApp()
 
@@ -124,7 +126,7 @@ describe('purchaseRoutes', () => {
   })
 
   it('should cancel purchase successfully', async () => {
-    mockCancel.mockResolvedValue(undefined)
+    mockCancelExecute.mockResolvedValue(undefined)
 
     const app = await makeApp()
 
@@ -134,11 +136,14 @@ describe('purchaseRoutes', () => {
     expect(response.body).toEqual({
       message: 'Purchase cancelled successfully'
     })
-    expect(mockCancel).toHaveBeenCalledWith(1, 1)
+    expect(mockCancelExecute).toHaveBeenCalledWith({
+      purchaseId: 1,
+      userId: 1
+    })
   })
 
   it('should return 404 when purchase is not found', async () => {
-    mockCancel.mockRejectedValue(new Error('Purchase not found'))
+    mockCancelExecute.mockRejectedValue(new Error('Purchase not found'))
 
     const app = await makeApp()
 
@@ -149,7 +154,7 @@ describe('purchaseRoutes', () => {
   })
 
   it('should return 409 when purchase is already cancelled', async () => {
-    mockCancel.mockRejectedValue(new Error('Purchase already cancelled'))
+    mockCancelExecute.mockRejectedValue(new Error('Purchase already cancelled'))
 
     const app = await makeApp()
 
@@ -161,7 +166,7 @@ describe('purchaseRoutes', () => {
 
   it('should return 404 when tickets are not found', async () => {
     mockFindByUserId.mockResolvedValue({ id: 10 })
-    mockCreatePurchaseExecute.mockRejectedValue(new Error('Some tickets not found'))
+    mockCreateExecute.mockRejectedValue(new Error('Some tickets not found'))
 
     const app = await makeApp()
 
@@ -178,7 +183,7 @@ describe('purchaseRoutes', () => {
 
   it('should return 409 when ticket is not available', async () => {
     mockFindByUserId.mockResolvedValue({ id: 10 })
-    mockCreatePurchaseExecute.mockRejectedValue(new Error('Ticket 1 is not available'))
+    mockCreateExecute.mockRejectedValue(new Error('Ticket 1 is not available'))
 
     const app = await makeApp()
 

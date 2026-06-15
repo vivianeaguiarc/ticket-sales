@@ -33,4 +33,16 @@ export class MysqlTicketRepository implements TicketRepository {
 
     await TicketModel.reserveIfAvailable(ticketId, { connection })
   }
+
+  async sellIfAvailable(ticketId: number, options?: RepositoryQueryOptions): Promise<void> {
+    const connection = resolveMysqlConnection(options?.scope)
+
+    await TicketModel.sellIfAvailable(ticketId, { connection })
+  }
+
+  async releaseIfSold(ticketId: number, options?: RepositoryQueryOptions): Promise<boolean> {
+    const connection = resolveMysqlConnection(options?.scope)
+
+    return TicketModel.releaseIfSold(ticketId, { connection })
+  }
 }

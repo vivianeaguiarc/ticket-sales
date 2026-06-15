@@ -102,10 +102,13 @@ vi.mock('../use-cases/purchase-ticket-use-case.js', () => ({
   }
 }))
 
-vi.mock('../services/purchase-service.js', () => ({
-  PurchaseService: class {
-    cancel = purchaseCancelMock
-  }
+vi.mock('../infra/composition/purchase-factory.js', () => ({
+  getCreatePurchaseUseCase: () => ({
+    execute: vi.fn()
+  }),
+  getCancelPurchaseUseCase: () => ({
+    execute: purchaseCancelMock
+  })
 }))
 
 vi.mock('../services/payment-service.js', () => ({

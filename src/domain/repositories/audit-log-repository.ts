@@ -24,6 +24,7 @@ export interface CreateAuditLogData {
   entityType: AuditEntityType
   entityId: number | null
   newData: AuditLogData
+  oldData?: AuditLogData | null
 }
 
 export interface AuditLogRepository {

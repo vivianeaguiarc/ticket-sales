@@ -10,4 +10,10 @@ export interface CreateReservationData {
 
 export interface ReservationRepository {
   create(data: CreateReservationData, options?: RepositoryQueryOptions): Promise<Reservation>
+  findReservedByCustomerAndTickets(
+    customerId: number,
+    ticketIds: number[],
+    options?: RepositoryQueryOptions
+  ): Promise<Reservation[]>
+  markAsCancelled(reservationId: number, options?: RepositoryQueryOptions): Promise<void>
 }
