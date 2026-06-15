@@ -19,8 +19,12 @@ export const app = express()
 app.use(express.json())
 
 app.use(healthRoutes)
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
 const unprotectedRoutes = [
+  { method: 'GET', path: '/docs' },
+  { method: 'GET', path: '/health' },
+  { method: 'GET', path: '/ready' },
   { method: 'POST', path: '/auth/login' },
   { method: 'POST', path: '/partners/register' },
   { method: 'POST', path: '/customers/register' },
@@ -28,9 +32,10 @@ const unprotectedRoutes = [
 ]
 
 app.use(async (req, res, next) => {
-  const isUnprotected = unprotectedRoutes.some(
-    (route) => route.method === req.method && req.path.startsWith(route.path)
-  )
+  const isUnprotected =
+    unprotectedRoutes.some(
+      (route) => route.method === req.method && req.path.startsWith(route.path)
+    ) || req.path.startsWith('/docs')
 
   if (isUnprotected) {
     return next()
@@ -74,5 +79,3 @@ app.use('/events', eventsRoutes)
 app.use('/partners/events/purchases', purchaseRoutes)
 app.use('/partners/events/reservations', reservationRoutes)
 app.use('/partners/events', ticketRoutes)
-
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
