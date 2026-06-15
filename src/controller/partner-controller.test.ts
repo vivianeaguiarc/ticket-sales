@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { Event } from '../domain/entities/event.js'
 
 const {
-  registerMock,
+  registerExecuteMock,
   findByUserIdMock,
   createEventExecuteMock,
   getPartnerEventsExecuteMock,
@@ -13,7 +13,7 @@ const {
   getEventHistoryMock
 } = vi.hoisted(() => {
   return {
-    registerMock: vi.fn(),
+    registerExecuteMock: vi.fn(),
     findByUserIdMock: vi.fn(),
     createEventExecuteMock: vi.fn(),
     getPartnerEventsExecuteMock: vi.fn(),
@@ -25,11 +25,16 @@ const {
 vi.mock('../services/partner-service.js', () => {
   return {
     PartnerService: class {
-      register = registerMock
       findByUserId = findByUserIdMock
     }
   }
 })
+
+vi.mock('../infra/composition/identity-factory.js', () => ({
+  getRegisterPartnerUseCase: () => ({
+    execute: registerExecuteMock
+  })
+}))
 
 vi.mock('../infra/composition/event-factory.js', () => ({
   getCreateEventUseCase: () => ({
@@ -76,7 +81,7 @@ describe('PartnerController', () => {
       createdAt: '2026-03-29T10:00:00.000Z'
     }
 
-    registerMock.mockResolvedValue(mockPartner)
+    registerExecuteMock.mockResolvedValue(mockPartner)
 
     const response = await request(app).post('/partners/register').send({
       name: 'Viviane',
@@ -87,7 +92,7 @@ describe('PartnerController', () => {
 
     expect(response.status).toBe(201)
     expect(response.body).toEqual(mockPartner)
-    expect(registerMock).toHaveBeenCalledWith({
+    expect(registerExecuteMock).toHaveBeenCalledWith({
       name: 'Viviane',
       email: 'viviane@email.com',
       password: '123456',

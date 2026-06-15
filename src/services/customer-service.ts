@@ -1,6 +1,8 @@
-import { Database } from '../database.js'
-import { CustomerModel } from '../models/customer-model.js'
-import { UserModel } from '../models/user-model.js'
+import {
+  getRegisterCustomerUseCase,
+  getSharedCustomerRepository
+} from '../infra/composition/identity-factory.js'
+import { toCustomerModel } from '../shared/mappers/customer-mapper.js'
 
 export class CustomerService {
   async register(data: {
@@ -10,52 +12,12 @@ export class CustomerService {
     address: string
     phone: string
   }) {
-    const { name, email, password, address, phone } = data
-
-    const connection = await Database.getInstance().getConnection()
-
-    try {
-      await connection.beginTransaction()
-
-      const user = await UserModel.create(
-        {
-          name,
-          email,
-          password
-        },
-        { connection }
-      )
-
-      const customer = await CustomerModel.create(
-        {
-          user_id: user.id,
-          address,
-          phone
-        },
-        { connection }
-      )
-
-      await connection.commit()
-
-      return {
-        id: customer.id,
-        userId: user.id,
-        name,
-        address,
-        phone,
-        createdAt: customer.created_at
-      }
-    } catch (error) {
-      await connection.rollback()
-      throw error
-    } finally {
-      connection.release()
-    }
+    return getRegisterCustomerUseCase().execute(data)
   }
 
   async findByUserId(userId: number) {
-    return CustomerModel.findOne({
-      where: { user_id: userId }
-    })
+    const customer = await getSharedCustomerRepository().findByUserId(userId)
+
+    return customer ? toCustomerModel(customer) : null
   }
 }

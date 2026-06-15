@@ -5,12 +5,7 @@ export class EventNotFoundError extends Error {
   }
 }
 
-export class PartnerNotFoundError extends Error {
-  constructor() {
-    super('Partner not found')
-    this.name = 'PartnerNotFoundError'
-  }
-}
+export { PartnerNotFoundError } from './identity-errors.js'
 
 export class ForbiddenEventAccessError extends Error {
   constructor() {

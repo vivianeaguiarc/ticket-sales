@@ -80,6 +80,18 @@ vi.mock('../services/auth-service.js', () => ({
   InvalidCredentialsError: class extends Error {}
 }))
 
+vi.mock('../infra/composition/identity-factory.js', () => ({
+  getLoginUseCase: () => ({
+    execute: authLoginMock
+  }),
+  getRegisterPartnerUseCase: () => ({
+    execute: partnerRegisterMock
+  }),
+  getRegisterCustomerUseCase: () => ({
+    execute: customerRegisterMock
+  })
+}))
+
 vi.mock('../infra/composition/event-factory.js', () => ({
   getCreateEventUseCase: () => ({
     execute: eventCreateMock

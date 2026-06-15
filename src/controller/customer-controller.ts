@@ -1,12 +1,11 @@
 import { Router } from 'express'
 
-import { CustomerService } from '../services/customer-service.js'
+import { getRegisterCustomerUseCase } from '../infra/composition/identity-factory.js'
 
 export const customerRoutes = Router()
 customerRoutes.post('/register', async (req, res) => {
   const { name, email, password, address, phone } = req.body
-  const customerService = new CustomerService()
-  const customer = await customerService.register({
+  const customer = await getRegisterCustomerUseCase().execute({
     name,
     email,
     password,

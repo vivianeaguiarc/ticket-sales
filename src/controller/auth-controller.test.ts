@@ -2,24 +2,21 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { loginMock } = vi.hoisted(() => {
+const { loginExecuteMock } = vi.hoisted(() => {
   return {
-    loginMock: vi.fn()
+    loginExecuteMock: vi.fn()
   }
 })
 
-vi.mock('../services/auth-service.js', () => {
-  class InvalidCredentialsError extends Error {}
-
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    AuthService: class {
-      login = loginMock
-    },
-    InvalidCredentialsError
+    getLoginUseCase: () => ({
+      execute: loginExecuteMock
+    })
   }
 })
 
-import { InvalidCredentialsError } from '../services/auth-service.js'
+import { InvalidCredentialsError } from '../domain/errors/identity-errors.js'
 import { authRoutes } from './auth-controller.js'
 
 describe('AuthController', () => {
@@ -34,7 +31,7 @@ describe('AuthController', () => {
   })
 
   test('deve retornar token com sucesso', async () => {
-    loginMock.mockResolvedValue('fake-jwt-token')
+    loginExecuteMock.mockResolvedValue('fake-jwt-token')
 
     const response = await request(app).post('/auth/login').send({
       email: 'test@email.com',
@@ -46,11 +43,11 @@ describe('AuthController', () => {
       token: 'fake-jwt-token'
     })
 
-    expect(loginMock).toHaveBeenCalledWith('test@email.com', '123456')
+    expect(loginExecuteMock).toHaveBeenCalledWith('test@email.com', '123456')
   })
 
   test('deve retornar 401 para credenciais inválidas', async () => {
-    loginMock.mockRejectedValue(new InvalidCredentialsError('Invalid email or password'))
+    loginExecuteMock.mockRejectedValue(new InvalidCredentialsError('Invalid email or password'))
 
     const response = await request(app).post('/auth/login').send({
       email: 'wrong@email.com',
@@ -62,11 +59,11 @@ describe('AuthController', () => {
       message: 'Invalid email or password'
     })
 
-    expect(loginMock).toHaveBeenCalledWith('wrong@email.com', 'wrong')
+    expect(loginExecuteMock).toHaveBeenCalledWith('wrong@email.com', 'wrong')
   })
 
   test('deve retornar 401 para erro genérico', async () => {
-    loginMock.mockRejectedValue(new Error('unexpected error'))
+    loginExecuteMock.mockRejectedValue(new Error('unexpected error'))
 
     const response = await request(app).post('/auth/login').send({
       email: 'test@email.com',

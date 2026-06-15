@@ -2,17 +2,17 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { registerMock } = vi.hoisted(() => {
+const { registerExecuteMock } = vi.hoisted(() => {
   return {
-    registerMock: vi.fn()
+    registerExecuteMock: vi.fn()
   }
 })
 
-vi.mock('../services/customer-service.js', () => {
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    CustomerService: class {
-      register = registerMock
-    }
+    getRegisterCustomerUseCase: () => ({
+      execute: registerExecuteMock
+    })
   }
 })
 
@@ -38,7 +38,7 @@ describe('CustomerController', () => {
       createdAt: '2026-03-29T12:00:00.000Z'
     }
 
-    registerMock.mockResolvedValue(mockCustomer)
+    registerExecuteMock.mockResolvedValue(mockCustomer)
 
     const response = await request(app).post('/customers/register').send({
       name: 'Viviane',
@@ -51,7 +51,7 @@ describe('CustomerController', () => {
     expect(response.status).toBe(201)
     expect(response.body).toEqual(mockCustomer)
 
-    expect(registerMock).toHaveBeenCalledWith({
+    expect(registerExecuteMock).toHaveBeenCalledWith({
       name: 'Viviane',
       email: 'viviane@email.com',
       password: '123456',

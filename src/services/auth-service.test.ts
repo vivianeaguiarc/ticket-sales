@@ -1,39 +1,21 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { findByEmailMock, compareSyncMock, signMock } = vi.hoisted(() => {
+const { loginExecuteMock } = vi.hoisted(() => {
   return {
-    findByEmailMock: vi.fn(),
-    compareSyncMock: vi.fn(),
-    signMock: vi.fn()
+    loginExecuteMock: vi.fn()
   }
 })
 
-vi.mock('../models/user-model.js', () => {
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    UserModel: {
-      findByEmail: findByEmailMock
-    }
+    getLoginUseCase: () => ({
+      execute: loginExecuteMock
+    })
   }
 })
 
-vi.mock('bcrypt', () => {
-  return {
-    default: {
-      compareSync: compareSyncMock
-    }
-  }
-})
-
-vi.mock('jsonwebtoken', () => {
-  return {
-    default: {
-      sign: signMock
-    }
-  }
-})
-
-import { UserModel } from '../models/user-model.js'
-import { AuthService, InvalidCredentialsError } from './auth-service.js'
+import { InvalidCredentialsError } from '../domain/errors/identity-errors.js'
+import { AuthService } from './auth-service.js'
 
 describe('AuthService', () => {
   const authService = new AuthService()
@@ -44,58 +26,32 @@ describe('AuthService', () => {
 
   describe('login', () => {
     test('deve fazer login com sucesso', async () => {
-      const mockUser = {
-        id: 1,
-        email: 'viviane@email.com',
-        password: 'hashed-password'
-      }
-
-      findByEmailMock.mockResolvedValue(mockUser)
-      compareSyncMock.mockReturnValue(true)
-      signMock.mockReturnValue('fake-jwt-token')
+      loginExecuteMock.mockResolvedValue('fake-jwt-token')
 
       const result = await authService.login('viviane@email.com', '123456')
 
-      expect(UserModel.findByEmail).toHaveBeenCalledWith('viviane@email.com')
-      expect(compareSyncMock).toHaveBeenCalledWith('123456', mockUser.password)
-      expect(signMock).toHaveBeenCalledWith(
-        { id: mockUser.id, email: mockUser.email },
-        'your_secret_key',
-        { expiresIn: '1h' }
-      )
-
+      expect(loginExecuteMock).toHaveBeenCalledWith('viviane@email.com', '123456')
       expect(result).toBe('fake-jwt-token')
     })
 
     test('deve lançar erro se o usuário não existir', async () => {
-      findByEmailMock.mockResolvedValue(null)
+      loginExecuteMock.mockRejectedValue(new InvalidCredentialsError('Invalid email or password'))
 
       await expect(authService.login('inexistente@email.com', '123456')).rejects.toThrow(
         InvalidCredentialsError
       )
 
-      expect(UserModel.findByEmail).toHaveBeenCalledWith('inexistente@email.com')
-      expect(compareSyncMock).not.toHaveBeenCalled()
-      expect(signMock).not.toHaveBeenCalled()
+      expect(loginExecuteMock).toHaveBeenCalledWith('inexistente@email.com', '123456')
     })
 
     test('deve lançar erro se a senha for inválida', async () => {
-      const mockUser = {
-        id: 1,
-        email: 'viviane@email.com',
-        password: 'hashed-password'
-      }
-
-      findByEmailMock.mockResolvedValue(mockUser)
-      compareSyncMock.mockReturnValue(false)
+      loginExecuteMock.mockRejectedValue(new InvalidCredentialsError('Invalid email or password'))
 
       await expect(authService.login('viviane@email.com', 'senha-errada')).rejects.toThrow(
         InvalidCredentialsError
       )
 
-      expect(UserModel.findByEmail).toHaveBeenCalledWith('viviane@email.com')
-      expect(compareSyncMock).toHaveBeenCalledWith('senha-errada', mockUser.password)
-      expect(signMock).not.toHaveBeenCalled()
+      expect(loginExecuteMock).toHaveBeenCalledWith('viviane@email.com', 'senha-errada')
     })
   })
 })

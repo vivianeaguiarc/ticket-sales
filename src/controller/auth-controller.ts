@@ -1,13 +1,14 @@
 import { Router } from 'express'
 
-import { AuthService, InvalidCredentialsError } from '../services/auth-service.js'
+import { InvalidCredentialsError } from '../domain/errors/identity-errors.js'
+import { getLoginUseCase } from '../infra/composition/identity-factory.js'
 
 export const authRoutes = Router()
 authRoutes.post('/login', async (req, res) => {
   const { email, password } = req.body
-  const authService = new AuthService()
+
   try {
-    const token = await authService.login(email, password)
+    const token = await getLoginUseCase().execute(email, password)
     res.json({ token })
   } catch (error) {
     console.error('Login error:', error)

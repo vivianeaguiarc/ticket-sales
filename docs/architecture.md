@@ -227,11 +227,102 @@ Fluxos migrados:
 
 ### O que ainda está legado (Events)
 
-| Componente                | Situação                                            |
-| ------------------------- | --------------------------------------------------- |
-| `EventService.getHistory` | Consulta direta a models de histórico/audit         |
-| `PartnerService`          | Autenticação de partner permanece em service legado |
-| `EventModel`              | Encapsulado pelo adapter; SQL não reescrito         |
+| Componente                | Situação                                    |
+| ------------------------- | ------------------------------------------- |
+| `EventService.getHistory` | Consulta direta a models de histórico/audit |
+| `EventModel`              | Encapsulado pelo adapter; SQL não reescrito |
+
+## Módulo migrado: Identidade e Autenticação
+
+Fluxos migrados:
+
+- **Login** (`POST /auth/login`)
+- **Cadastro de partner** (`POST /partners/register`)
+- **Cadastro de customer** (`POST /customers/register`)
+- **Autenticação JWT** (middleware em `app.ts` via `UserService` facade)
+
+### Domínio de identidade
+
+O domínio de identidade agrupa três agregados relacionados:
+
+| Entidade   | Responsabilidade                                 |
+| ---------- | ------------------------------------------------ |
+| `User`     | Credenciais e dados básicos (nome, email, senha) |
+| `Partner`  | Perfil de parceiro vinculado a um `User`         |
+| `Customer` | Perfil de cliente vinculado a um `User`          |
+
+Cadastro de partner/customer cria **User + perfil** em transação atômica.
+
+### Autenticação
+
+| Componente             | Responsabilidade                                          |
+| ---------------------- | --------------------------------------------------------- |
+| `LoginUseCase`         | Valida credenciais via `UserRepository`                   |
+| `JwtTokenService`      | Gera token JWT (`id`, `email`, expiração 1h)              |
+| Middleware em `app.ts` | Verifica token com `jwt.verify`, carrega usuário por `id` |
+
+O contrato JWT existente é preservado: payload `{ id, email }`, secret em `env.jwtSecret`.
+
+### Autorização
+
+A autorização permanece **no controller** (padrão legado):
+
+- Rotas públicas listadas em `unprotectedRoutes` (`/auth/login`, `/partners/register`, etc.)
+- Rotas protegidas exigem `Authorization: Bearer <token>`
+- Checagem de perfil partner (`PartnerService.findByUserId`) antes de operações de eventos/tickets
+
+### Componentes criados
+
+| Camada      | Arquivo                                                    | Responsabilidade                          |
+| ----------- | ---------------------------------------------------------- | ----------------------------------------- |
+| Domain      | `domain/entities/user.ts`, `partner.ts`, `customer.ts`     | Entidades puras                           |
+| Domain      | `domain/errors/identity-errors.ts`                         | Erros de credenciais, duplicidade, etc.   |
+| Domain      | `domain/repositories/user-repository.ts`                   | Port de usuários                          |
+| Domain      | `domain/repositories/partner-repository.ts`                | Port de partners                          |
+| Domain      | `domain/repositories/customer-repository.ts`               | Port de customers                         |
+| Domain      | `domain/services/token-service.ts`                         | Port de geração de JWT                    |
+| Application | `application/use-cases/login-use-case.ts`                  | Login sem MySQL direto                    |
+| Application | `application/use-cases/get-current-user-use-case.ts`       | Usuário autenticado por id                |
+| Application | `application/use-cases/register-partner-use-case.ts`       | Cadastro transacional partner             |
+| Application | `application/use-cases/register-customer-use-case.ts`      | Cadastro transacional customer            |
+| Infra       | `infra/repositories/mysql-user-repository.ts`              | Adapter MySQL + mapeamento ER_DUP_ENTRY   |
+| Infra       | `infra/repositories/mysql-partner-repository.ts`           | Adapter MySQL                             |
+| Infra       | `infra/repositories/mysql-customer-repository.ts`          | Adapter MySQL                             |
+| Infra       | `infra/services/jwt-token-service.ts`                      | Implementação JWT                         |
+| Infra       | `infra/composition/identity-factory.ts`                    | Composition root compartilhado            |
+| Shared      | `shared/mappers/user-mapper.ts`, `partner-mapper.ts`, etc. | Domínio → models legados (API/middleware) |
+| Legado      | `services/auth-service.ts`, `user-service.ts`, etc.        | Facades delegando à application layer     |
+
+### Responsabilidades das camadas (identidade)
+
+```
+Domain        → entidades, erros, ports (repositórios, TokenService)
+Application   → orquestração (login, cadastro, get current user)
+Infra         → adapters MySQL sobre models legados + JWT
+Presentation  → controllers adaptados (factory), middleware JWT preservado
+Legado        → services como facades para imports existentes
+```
+
+### Fluxo após migração Identidade
+
+```
+HTTP Request
+  → auth-controller / partner-controller / customer-controller
+  → getLoginUseCase() / getRegisterPartnerUseCase() / ...
+  → Application use case
+  → UserRepository / PartnerRepository / CustomerRepository / TokenService
+  → MysqlUserRepository / JwtTokenService [infra]
+  → UserModel / PartnerModel / CustomerModel [legado]
+  → MySQL
+```
+
+### O que ainda está legado (Identidade)
+
+| Componente                          | Situação                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| Middleware JWT em `app.ts`          | Usa `UserService` facade + `jwt.verify` direto                             |
+| `UserModel` / `PartnerModel` / etc. | Encapsulados por adapters; SQL não reescrito                               |
+| Tratamento HTTP de email duplicado  | `UserAlreadyExistsError` mapeado no repo; controllers não tratam 409 ainda |
 
 ### Fluxo após migração Events
 
@@ -255,19 +346,19 @@ HTTP Request
 
 ## Plano incremental de migração
 
-| Fase | Módulo                                                      | Status       |
-| ---- | ----------------------------------------------------------- | ------------ |
-| 1    | Reservas (`CreateReservationUseCase`)                       | ✅ Concluído |
-| 2    | Compras (`CreatePurchaseUseCase` / `CancelPurchaseUseCase`) | ✅ Concluído |
-| 3    | Tickets (CRUD + transições via `TicketRepository`)          | ✅ Concluído |
-| 4    | Events (CRUD + consultas via `EventRepository`)             | ✅ Concluído |
-| 5    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)     | 🔜 Próximo   |
-| 6    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)    | Pendente     |
-| 7    | `EventService.getHistory`                                   | Pendente     |
-| 8    | `PurchaseService.create` (pagamento simulado)               | Pendente     |
-| 9    | Auth, partners, customers                                   | Pendente     |
-| 10   | Jobs (expiração de reservas)                                | Pendente     |
-| 11   | Mover controllers para `presentation/`                      | Pendente     |
+| Fase | Módulo                                                       | Status       |
+| ---- | ------------------------------------------------------------ | ------------ |
+| 1    | Reservas (`CreateReservationUseCase`)                        | ✅ Concluído |
+| 2    | Compras (`CreatePurchaseUseCase` / `CancelPurchaseUseCase`)  | ✅ Concluído |
+| 3    | Tickets (CRUD + transições via `TicketRepository`)           | ✅ Concluído |
+| 4    | Events (CRUD + consultas via `EventRepository`)              | ✅ Concluído |
+| 5    | Identidade e Autenticação (Auth, Users, Partners, Customers) | ✅ Concluído |
+| 6    | Reservas (`ReserveTicketUseCase` + `ticket-controller`)      | 🔜 Próximo   |
+| 7    | Compras (`PurchaseTicketUseCase` em `ticket-controller`)     | Pendente     |
+| 8    | `EventService.getHistory`                                    | Pendente     |
+| 9    | `PurchaseService.create` (pagamento simulado)                | Pendente     |
+| 10   | Jobs (expiração de reservas)                                 | Pendente     |
+| 11   | Mover controllers para `presentation/`                       | Pendente     |
 
 ### Próximo passo recomendado
 

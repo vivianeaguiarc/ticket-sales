@@ -5,6 +5,7 @@ import {
   getGetEventByIdUseCase,
   getGetPartnerEventsUseCase
 } from '../infra/composition/event-factory.js'
+import { getRegisterPartnerUseCase } from '../infra/composition/identity-factory.js'
 import { EventService } from '../services/event-service.js'
 import { PartnerService } from '../services/partner-service.js'
 import { toEventModel, toEventModels } from '../shared/mappers/event-mapper.js'
@@ -13,8 +14,7 @@ export const partnerRoutes = Router()
 
 partnerRoutes.post('/register', async (_req, res) => {
   const { name, email, password, company_name } = _req.body
-  const partnerService = new PartnerService()
-  const result = await partnerService.register({ name, email, password, company_name })
+  const result = await getRegisterPartnerUseCase().execute({ name, email, password, company_name })
   res.status(201).json(result)
 })
 

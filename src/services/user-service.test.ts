@@ -7,15 +7,16 @@ const { findByIdMock, findByEmailMock } = vi.hoisted(() => {
   }
 })
 
-vi.mock('../models/user-model.js', () => {
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    UserModel: {
+    getSharedUserRepository: () => ({
       findById: findByIdMock,
       findByEmail: findByEmailMock
-    }
+    })
   }
 })
 
+import { User } from '../domain/entities/user.js'
 import { UserService } from './user-service.js'
 
 describe('UserService', () => {
@@ -24,17 +25,22 @@ describe('UserService', () => {
   })
 
   describe('findById', () => {
-    test('deve chamar UserModel.findById com o id correto', async () => {
-      const fakeUser = { id: 1, name: 'Viviane' }
+    test('deve chamar UserRepository.findById com o id correto', async () => {
+      const createdAt = new Date()
+      const domainUser = new User(1, 'Viviane', 'viviane@email.com', 'hash', createdAt)
 
-      findByIdMock.mockResolvedValue(fakeUser)
+      findByIdMock.mockResolvedValue(domainUser)
 
       const service = new UserService()
 
       const result = await service.findById(1)
 
       expect(findByIdMock).toHaveBeenCalledWith(1)
-      expect(result).toBe(fakeUser)
+      expect(result).toMatchObject({
+        id: 1,
+        name: 'Viviane',
+        email: 'viviane@email.com'
+      })
     })
 
     test('deve retornar null quando user não existir', async () => {
@@ -50,17 +56,21 @@ describe('UserService', () => {
   })
 
   describe('findByEmail', () => {
-    test('deve chamar UserModel.findByEmail com o email correto', async () => {
-      const fakeUser = { id: 1, email: 'test@email.com' }
+    test('deve chamar UserRepository.findByEmail com o email correto', async () => {
+      const createdAt = new Date()
+      const domainUser = new User(1, 'Test', 'test@email.com', 'hash', createdAt)
 
-      findByEmailMock.mockResolvedValue(fakeUser)
+      findByEmailMock.mockResolvedValue(domainUser)
 
       const service = new UserService()
 
       const result = await service.findByEmail('test@email.com')
 
       expect(findByEmailMock).toHaveBeenCalledWith('test@email.com')
-      expect(result).toBe(fakeUser)
+      expect(result).toMatchObject({
+        id: 1,
+        email: 'test@email.com'
+      })
     })
 
     test('deve retornar null quando email não existir', async () => {

@@ -1,61 +1,28 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const {
-  beginTransactionMock,
-  commitMock,
-  rollbackMock,
-  endMock,
-  getConnectionMock,
-  userCreateMock,
-  partnerCreateMock,
-  findByUserIdMock,
-  findByIdMock,
-  findAllMock
-} = vi.hoisted(() => {
+const { registerExecuteMock, findByIdMock, findByUserIdMock, findAllMock } = vi.hoisted(() => {
   return {
-    beginTransactionMock: vi.fn(),
-    commitMock: vi.fn(),
-    rollbackMock: vi.fn(),
-    endMock: vi.fn(),
-    getConnectionMock: vi.fn(),
-    userCreateMock: vi.fn(),
-    partnerCreateMock: vi.fn(),
-    findByUserIdMock: vi.fn(),
+    registerExecuteMock: vi.fn(),
     findByIdMock: vi.fn(),
+    findByUserIdMock: vi.fn(),
     findAllMock: vi.fn()
   }
 })
 
-vi.mock('../database.js', () => {
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    Database: {
-      getInstance: vi.fn(() => ({
-        getConnection: getConnectionMock
-      }))
-    }
-  }
-})
-
-vi.mock('../models/user-model.js', () => {
-  return {
-    UserModel: {
-      create: userCreateMock
-    }
-  }
-})
-
-vi.mock('../models/partner-model.js', () => {
-  return {
-    PartnerModel: {
-      create: partnerCreateMock,
-      findByUserId: findByUserIdMock,
+    getRegisterPartnerUseCase: () => ({
+      execute: registerExecuteMock
+    }),
+    getSharedPartnerRepository: () => ({
       findById: findByIdMock,
+      findByUserId: findByUserIdMock,
       findAll: findAllMock
-    }
+    })
   }
 })
 
-import { PartnerModel } from '../models/partner-model.js'
+import { Partner } from '../domain/entities/partner.js'
 import { PartnerService } from './partner-service.js'
 
 describe('PartnerService', () => {
@@ -63,13 +30,6 @@ describe('PartnerService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    getConnectionMock.mockResolvedValue({
-      beginTransaction: beginTransactionMock,
-      commit: commitMock,
-      rollback: rollbackMock,
-      end: endMock
-    })
   })
 
   describe('register', () => {
@@ -81,65 +41,29 @@ describe('PartnerService', () => {
         company_name: 'Minha Empresa'
       }
 
-      const mockUser = {
-        id: 1
-      }
+      const createdAt = new Date()
 
-      const mockPartner = {
+      registerExecuteMock.mockResolvedValue({
         id: 10,
-        created_at: new Date()
-      }
-
-      const connection = {
-        beginTransaction: beginTransactionMock,
-        commit: commitMock,
-        rollback: rollbackMock,
-        end: endMock
-      }
-
-      getConnectionMock.mockResolvedValue(connection)
-      userCreateMock.mockResolvedValue(mockUser)
-      partnerCreateMock.mockResolvedValue(mockPartner)
+        name: input.name,
+        userId: 1,
+        company_name: input.company_name,
+        createdAt
+      })
 
       const result = await partnerService.register(input)
 
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-
-      expect(userCreateMock).toHaveBeenCalledWith(
-        {
-          name: input.name,
-          email: input.email,
-          password: input.password
-        },
-        {
-          connection
-        }
-      )
-
-      expect(partnerCreateMock).toHaveBeenCalledWith(
-        {
-          user_id: mockUser.id,
-          company_name: input.company_name
-        },
-        {
-          connection
-        }
-      )
-
-      expect(commitMock).toHaveBeenCalledTimes(1)
-      expect(rollbackMock).not.toHaveBeenCalled()
-      expect(endMock).toHaveBeenCalledTimes(1)
-
+      expect(registerExecuteMock).toHaveBeenCalledWith(input)
       expect(result).toEqual({
-        id: mockPartner.id,
+        id: 10,
         name: input.name,
-        userId: mockUser.id,
+        userId: 1,
         company_name: input.company_name,
-        createdAt: mockPartner.created_at
+        createdAt
       })
     })
 
-    test('deve fazer rollback se UserModel.create lançar erro', async () => {
+    test('deve propagar erro do use case', async () => {
       const input = {
         name: 'Viviane',
         email: 'viviane@email.com',
@@ -147,135 +71,60 @@ describe('PartnerService', () => {
         company_name: 'Minha Empresa'
       }
 
-      const error = new Error('User create error')
-
-      const connection = {
-        beginTransaction: beginTransactionMock,
-        commit: commitMock,
-        rollback: rollbackMock,
-        end: endMock
-      }
-
-      getConnectionMock.mockResolvedValue(connection)
-      userCreateMock.mockRejectedValue(error)
+      registerExecuteMock.mockRejectedValue(new Error('User create error'))
 
       await expect(partnerService.register(input)).rejects.toThrow('User create error')
-
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-
-      expect(userCreateMock).toHaveBeenCalledWith(
-        {
-          name: input.name,
-          email: input.email,
-          password: input.password
-        },
-        {
-          connection
-        }
-      )
-
-      expect(partnerCreateMock).not.toHaveBeenCalled()
-      expect(commitMock).not.toHaveBeenCalled()
-      expect(rollbackMock).toHaveBeenCalledTimes(1)
-      expect(endMock).toHaveBeenCalledTimes(1)
-    })
-
-    test('deve fazer rollback se PartnerModel.create lançar erro', async () => {
-      const input = {
-        name: 'Viviane',
-        email: 'viviane@email.com',
-        password: '123456',
-        company_name: 'Minha Empresa'
-      }
-
-      const mockUser = {
-        id: 1
-      }
-
-      const error = new Error('Partner create error')
-
-      const connection = {
-        beginTransaction: beginTransactionMock,
-        commit: commitMock,
-        rollback: rollbackMock,
-        end: endMock
-      }
-
-      getConnectionMock.mockResolvedValue(connection)
-      userCreateMock.mockResolvedValue(mockUser)
-      partnerCreateMock.mockRejectedValue(error)
-
-      await expect(partnerService.register(input)).rejects.toThrow('Partner create error')
-
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-
-      expect(userCreateMock).toHaveBeenCalledWith(
-        {
-          name: input.name,
-          email: input.email,
-          password: input.password
-        },
-        {
-          connection
-        }
-      )
-
-      expect(partnerCreateMock).toHaveBeenCalledWith(
-        {
-          user_id: mockUser.id,
-          company_name: input.company_name
-        },
-        {
-          connection
-        }
-      )
-
-      expect(commitMock).not.toHaveBeenCalled()
-      expect(rollbackMock).toHaveBeenCalledTimes(1)
-      expect(endMock).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('findByUserId', () => {
     test('deve buscar partner por userId com sucesso', async () => {
-      const mockPartner = {
-        id: 10,
-        user_id: 1,
-        company_name: 'Minha Empresa'
-      }
+      const createdAt = new Date()
+      const domainPartner = new Partner(10, 1, 'Minha Empresa', createdAt)
 
-      findByUserIdMock.mockResolvedValue(mockPartner)
+      findByUserIdMock.mockResolvedValue(domainPartner)
 
       const result = await partnerService.findByUserId(1)
 
-      expect(PartnerModel.findByUserId).toHaveBeenCalledWith(1)
-      expect(result).toEqual(mockPartner)
+      expect(findByUserIdMock).toHaveBeenCalledWith(1)
+      expect(result).toMatchObject({
+        id: 10,
+        user_id: 1,
+        company_name: 'Minha Empresa'
+      })
     })
   })
 
   describe('findById', () => {
     test('deve buscar partner por id', async () => {
-      const mockPartner = { id: 10, company_name: 'Empresa' }
+      const createdAt = new Date()
+      const domainPartner = new Partner(10, 1, 'Empresa', createdAt)
 
-      findByIdMock.mockResolvedValue(mockPartner)
+      findByIdMock.mockResolvedValue(domainPartner)
 
       const result = await partnerService.findById(10)
 
-      expect(PartnerModel.findById).toHaveBeenCalledWith(10)
-      expect(result).toEqual(mockPartner)
+      expect(findByIdMock).toHaveBeenCalledWith(10)
+      expect(result).toMatchObject({
+        id: 10,
+        company_name: 'Empresa'
+      })
     })
   })
 
   describe('findAll', () => {
     test('deve listar todos os partners', async () => {
-      const partners = [{ id: 1 }, { id: 2 }]
+      const createdAt = new Date()
+      const partners = [new Partner(1, 1, 'A', createdAt), new Partner(2, 2, 'B', createdAt)]
 
       findAllMock.mockResolvedValue(partners)
 
       const result = await partnerService.findAll()
 
-      expect(PartnerModel.findAll).toHaveBeenCalled()
-      expect(result).toEqual(partners)
+      expect(findAllMock).toHaveBeenCalled()
+      expect(result).toHaveLength(2)
+      expect(result[0]).toMatchObject({ id: 1 })
+      expect(result[1]).toMatchObject({ id: 2 })
     })
   })
 })

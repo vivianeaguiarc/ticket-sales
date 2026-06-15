@@ -1,54 +1,24 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const {
-  beginTransactionMock,
-  commitMock,
-  rollbackMock,
-  releaseMock,
-  getConnectionMock,
-  userCreateMock,
-  customerCreateMock,
-  findOneMock
-} = vi.hoisted(() => {
+const { registerExecuteMock, findByUserIdMock } = vi.hoisted(() => {
   return {
-    beginTransactionMock: vi.fn(),
-    commitMock: vi.fn(),
-    rollbackMock: vi.fn(),
-    releaseMock: vi.fn(),
-    getConnectionMock: vi.fn(),
-    userCreateMock: vi.fn(),
-    customerCreateMock: vi.fn(),
-    findOneMock: vi.fn()
+    registerExecuteMock: vi.fn(),
+    findByUserIdMock: vi.fn()
   }
 })
 
-vi.mock('../database.js', () => {
+vi.mock('../infra/composition/identity-factory.js', () => {
   return {
-    Database: {
-      getInstance: vi.fn(() => ({
-        getConnection: getConnectionMock
-      }))
-    }
+    getRegisterCustomerUseCase: () => ({
+      execute: registerExecuteMock
+    }),
+    getSharedCustomerRepository: () => ({
+      findByUserId: findByUserIdMock
+    })
   }
 })
 
-vi.mock('../models/user-model.js', () => {
-  return {
-    UserModel: {
-      create: userCreateMock
-    }
-  }
-})
-
-vi.mock('../models/customer-model.js', () => {
-  return {
-    CustomerModel: {
-      create: customerCreateMock,
-      findOne: findOneMock
-    }
-  }
-})
-
+import { Customer } from '../domain/entities/customer.js'
 import { CustomerService } from './customer-service.js'
 
 describe('CustomerService', () => {
@@ -56,13 +26,6 @@ describe('CustomerService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    getConnectionMock.mockResolvedValue({
-      beginTransaction: beginTransactionMock,
-      commit: commitMock,
-      rollback: rollbackMock,
-      release: releaseMock
-    })
   })
 
   describe('register', () => {
@@ -75,69 +38,31 @@ describe('CustomerService', () => {
         phone: '11999999999'
       }
 
-      const mockUser = {
-        id: 1
-      }
+      const createdAt = new Date()
 
-      const mockCustomer = {
+      registerExecuteMock.mockResolvedValue({
         id: 10,
-        created_at: new Date()
-      }
-
-      userCreateMock.mockResolvedValue(mockUser)
-      customerCreateMock.mockResolvedValue(mockCustomer)
-
-      const result = await customerService.register(input)
-
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-
-      expect(userCreateMock).toHaveBeenCalledWith(
-        {
-          name: input.name,
-          email: input.email,
-          password: input.password
-        },
-        {
-          connection: {
-            beginTransaction: beginTransactionMock,
-            commit: commitMock,
-            rollback: rollbackMock,
-            release: releaseMock
-          }
-        }
-      )
-
-      expect(customerCreateMock).toHaveBeenCalledWith(
-        {
-          user_id: mockUser.id,
-          address: input.address,
-          phone: input.phone
-        },
-        {
-          connection: {
-            beginTransaction: beginTransactionMock,
-            commit: commitMock,
-            rollback: rollbackMock,
-            release: releaseMock
-          }
-        }
-      )
-
-      expect(commitMock).toHaveBeenCalledTimes(1)
-      expect(rollbackMock).not.toHaveBeenCalled()
-      expect(releaseMock).toHaveBeenCalledTimes(1)
-
-      expect(result).toEqual({
-        id: mockCustomer.id,
-        userId: mockUser.id,
+        userId: 1,
         name: input.name,
         address: input.address,
         phone: input.phone,
-        createdAt: mockCustomer.created_at
+        createdAt
+      })
+
+      const result = await customerService.register(input)
+
+      expect(registerExecuteMock).toHaveBeenCalledWith(input)
+      expect(result).toEqual({
+        id: 10,
+        userId: 1,
+        name: input.name,
+        address: input.address,
+        phone: input.phone,
+        createdAt
       })
     })
 
-    test('deve fazer rollback se UserModel.create lançar erro', async () => {
+    test('deve propagar erro do use case', async () => {
       const input = {
         name: 'Viviane',
         email: 'viviane@email.com',
@@ -146,90 +71,26 @@ describe('CustomerService', () => {
         phone: '11999999999'
       }
 
-      const error = new Error('User create error')
-
-      userCreateMock.mockRejectedValue(error)
+      registerExecuteMock.mockRejectedValue(new Error('User create error'))
 
       await expect(customerService.register(input)).rejects.toThrow('User create error')
-
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-      expect(userCreateMock).toHaveBeenCalledTimes(1)
-      expect(customerCreateMock).not.toHaveBeenCalled()
-      expect(commitMock).not.toHaveBeenCalled()
-      expect(rollbackMock).toHaveBeenCalledTimes(1)
-      expect(releaseMock).toHaveBeenCalledTimes(1)
-    })
-
-    test('deve fazer rollback se CustomerModel.create lançar erro', async () => {
-      const input = {
-        name: 'Viviane',
-        email: 'viviane@email.com',
-        password: '123456',
-        address: 'Rua Teste, 123',
-        phone: '11999999999'
-      }
-
-      const mockUser = {
-        id: 1
-      }
-
-      const error = new Error('Customer create error')
-
-      userCreateMock.mockResolvedValue(mockUser)
-      customerCreateMock.mockRejectedValue(error)
-
-      await expect(customerService.register(input)).rejects.toThrow('Customer create error')
-
-      expect(beginTransactionMock).toHaveBeenCalledTimes(1)
-
-      expect(userCreateMock).toHaveBeenCalledWith(
-        {
-          name: input.name,
-          email: input.email,
-          password: input.password
-        },
-        {
-          connection: {
-            beginTransaction: beginTransactionMock,
-            commit: commitMock,
-            rollback: rollbackMock,
-            release: releaseMock
-          }
-        }
-      )
-
-      expect(customerCreateMock).toHaveBeenCalledWith(
-        {
-          user_id: mockUser.id,
-          address: input.address,
-          phone: input.phone
-        },
-        {
-          connection: {
-            beginTransaction: beginTransactionMock,
-            commit: commitMock,
-            rollback: rollbackMock,
-            release: releaseMock
-          }
-        }
-      )
-
-      expect(commitMock).not.toHaveBeenCalled()
-      expect(rollbackMock).toHaveBeenCalledTimes(1)
-      expect(releaseMock).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('findByUserId', () => {
     test('deve buscar customer por userId', async () => {
-      const customer = { id: 5, user_id: 2 }
+      const createdAt = new Date()
+      const domainCustomer = new Customer(5, 2, 'Rua A', '111', createdAt)
 
-      findOneMock.mockResolvedValue(customer)
+      findByUserIdMock.mockResolvedValue(domainCustomer)
 
       const result = await customerService.findByUserId(2)
 
-      expect(findOneMock).toHaveBeenCalledWith({ where: { user_id: 2 } })
-      expect(result).toEqual(customer)
+      expect(findByUserIdMock).toHaveBeenCalledWith(2)
+      expect(result).toMatchObject({
+        id: 5,
+        user_id: 2
+      })
     })
   })
 })
