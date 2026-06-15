@@ -265,24 +265,32 @@ Authorization: Bearer {{tokenPartner}}
 GET {{baseUrl}}/docs
 
 ### =========================================================
-### CENÁRIOS DE ERRO (referência — descomente para testar)
+### CENÁRIOS DE ERRO (opcional — executar manualmente)
 ### =========================================================
 
+### Login inválido — esperado: 401
 # POST {{baseUrl}}/auth/login
 # Content-Type: application/json
 #
-# { "email": "invalido@test.com", "password": "errado" }
-# Esperado: 401
+# {
+#   "email": "invalido@test.com",
+#   "password": "errado"
+# }
 
+### Rota protegida sem token — esperado: 401
 # POST {{baseUrl}}/partners/events
 # Content-Type: application/json
 #
-# { "name": "Sem token" }
-# Esperado: 401 No token provided
+# {
+#   "name": "Sem token"
+# }
 
+### Ticket inexistente na compra — esperado: 404
 # POST {{baseUrl}}/partners/events/purchases
 # Content-Type: application/json
 # Authorization: Bearer {{tokenCustomer}}
 #
-# { "ticket_ids": [99999], "card_token": "x" }
-# Esperado: 404 Some tickets not found
+# {
+#   "ticket_ids": [99999],
+#   "card_token": "x"
+# }

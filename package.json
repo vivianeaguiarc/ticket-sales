@@ -1,7 +1,19 @@
 {
   "name": "ticket-sales",
   "version": "1.0.0",
-  "description": "API REST para venda de ingressos com reservas, compras, cancelamentos e controle de concorrência.",
+  "description": "API REST de venda de ingressos com transações MySQL, controle de concorrência, JWT, Docker e Clean Architecture incremental.",
+  "keywords": [
+    "nodejs",
+    "typescript",
+    "express",
+    "mysql",
+    "clean-architecture",
+    "jwt",
+    "docker",
+    "vitest",
+    "ticket-sales",
+    "portfolio"
+  ],
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
