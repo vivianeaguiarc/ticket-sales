@@ -279,4 +279,37 @@ describe('AuditLogModel', () => {
       expect(executeMock).not.toHaveBeenCalled()
     })
   })
+
+  describe('findByEventId', () => {
+    test('deve retornar audit logs relacionados ao evento', async () => {
+      const rows = [
+        {
+          id: 1,
+          user_id: 5,
+          action: AuditAction.EVENT_CREATED,
+          entity_type: AuditEntityType.event,
+          entity_id: 10,
+          old_data: null,
+          new_data: null,
+          created_at: new Date('2026-04-01T12:05:00.000Z')
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await AuditLogModel.findByEventId(10)
+
+      expect(executeMock).toHaveBeenCalledWith(expect.stringContaining('FROM audit_logs al'), [
+        AuditEntityType.event,
+        10,
+        AuditEntityType.ticket,
+        10,
+        AuditEntityType.reservation,
+        AuditEntityType.purchase,
+        10
+      ])
+      expect(result).toHaveLength(1)
+      expect(result[0].action).toBe(AuditAction.EVENT_CREATED)
+    })
+  })
 })

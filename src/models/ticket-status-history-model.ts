@@ -93,6 +93,26 @@ export class TicketStatusHistoryModel {
     return rows.map((row) => new TicketStatusHistoryModel(row as TicketStatusHistoryModel))
   }
 
+  static async findByEventId(
+    eventId: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<TicketStatusHistoryModel[]> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `
+        SELECT tsh.*
+        FROM ticket_status_history tsh
+        INNER JOIN tickets t ON t.id = tsh.ticket_id
+        WHERE t.event_id = ?
+        ORDER BY tsh.changed_at DESC
+      `,
+      [eventId]
+    )
+
+    return rows.map((row) => new TicketStatusHistoryModel(row as TicketStatusHistoryModel))
+  }
+
   async delete(options?: { connection?: PoolConnection }): Promise<void> {
     const db = options?.connection ?? Database.getInstance()
 

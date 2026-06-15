@@ -250,6 +250,32 @@ describe('TicketStatusHistoryModel', () => {
     })
   })
 
+  describe('findByEventId', () => {
+    test('deve retornar histórico de status por event_id', async () => {
+      const rows = [
+        {
+          id: 1,
+          ticket_id: 10,
+          from_status: TicketStatus.available,
+          to_status: TicketStatus.reserved,
+          changed_at: new Date('2026-04-01T12:00:00.000Z')
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await TicketStatusHistoryModel.findByEventId(5)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        expect.stringContaining('FROM ticket_status_history tsh'),
+        [5]
+      )
+      expect(executeMock).toHaveBeenCalledWith(expect.stringContaining('WHERE t.event_id = ?'), [5])
+      expect(result).toHaveLength(1)
+      expect(result[0].ticket_id).toBe(10)
+    })
+  })
+
   describe('delete', () => {
     test('deve deletar histórico com sucesso', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])

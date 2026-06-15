@@ -131,6 +131,17 @@ GET {{baseUrl}}/partners/events/{{eventId}}/tickets
 Authorization: Bearer {{tokenPartner}}
 
 ### =========================================================
+### 7.1 HISTÓRICO DO EVENTO (partner dono)
+### GET /partners/events/:eventId/history
+### Retorna ticket_status_history + audit_logs em ordem decrescente
+### =========================================================
+
+###
+# @name eventHistory
+GET {{baseUrl}}/partners/events/{{eventId}}/history
+Authorization: Bearer {{tokenPartner}}
+
+### =========================================================
 ### 8. VALIDAÇÃO NO MYSQL (antes de reservar/comprar)
 ### Ajuste os IDs conforme o retorno do passo 7
 ### =========================================================

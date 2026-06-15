@@ -72,3 +72,31 @@ partnerRoutes.get('/events/:eventId', async (req, res) => {
 
   res.json(event)
 })
+
+partnerRoutes.get('/events/:eventId/history', async (req, res) => {
+  const { eventId } = req.params
+  const userId = req.user!.id
+  const partnerService = new PartnerService()
+  const partner = await partnerService.findByUserId(userId)
+
+  if (!partner) {
+    res.status(403).json({ message: 'Not authorized' })
+    return
+  }
+
+  const eventService = new EventService()
+  const event = await eventService.findById(+eventId)
+
+  if (!event) {
+    res.status(404).json({ message: 'Event not found' })
+    return
+  }
+
+  if (event.partner_id !== partner.id) {
+    res.status(403).json({ message: 'Not authorized' })
+    return
+  }
+
+  const history = await eventService.getHistory(+eventId)
+  res.json(history)
+})

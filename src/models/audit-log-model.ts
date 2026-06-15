@@ -136,6 +136,49 @@ export class AuditLogModel {
     return rows.map((row) => AuditLogModel.fromRow(row))
   }
 
+  static async findByEventId(
+    eventId: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<AuditLogModel[]> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const [rows] = await db.execute<RowDataPacket[]>(
+      `
+        SELECT DISTINCT al.*
+        FROM audit_logs al
+        WHERE
+          (al.entity_type = ? AND al.entity_id = ?)
+          OR (al.entity_type = ? AND al.entity_id = ?)
+          OR (
+            al.entity_type IN (?, ?)
+            AND EXISTS (
+              SELECT 1
+              FROM tickets t
+              WHERE t.event_id = ?
+              AND (
+                JSON_CONTAINS(COALESCE(al.new_data, '{}'), CAST(t.id AS JSON), '$.ticket_ids')
+                OR JSON_CONTAINS(COALESCE(al.old_data, '{}'), CAST(t.id AS JSON), '$.ticket_ids')
+                OR JSON_UNQUOTE(JSON_EXTRACT(al.new_data, '$.ticket_id')) = CAST(t.id AS CHAR)
+                OR JSON_UNQUOTE(JSON_EXTRACT(al.old_data, '$.ticket_id')) = CAST(t.id AS CHAR)
+              )
+            )
+          )
+        ORDER BY al.created_at DESC
+      `,
+      [
+        AuditEntityType.event,
+        eventId,
+        AuditEntityType.ticket,
+        eventId,
+        AuditEntityType.reservation,
+        AuditEntityType.purchase,
+        eventId
+      ]
+    )
+
+    return rows.map((row) => AuditLogModel.fromRow(row))
+  }
+
   private static fromRow(row: RowDataPacket): AuditLogModel {
     return new AuditLogModel({
       id: row.id as number,

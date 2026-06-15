@@ -51,6 +51,17 @@ Filtrar por ação:
 SELECT * FROM audit_logs WHERE action = 'PURCHASE_CREATED' ORDER BY created_at DESC;
 ```
 
+### Histórico do evento (API)
+
+Partners autenticados podem consultar alterações e auditorias dos tickets de um evento:
+
+```http
+GET /partners/events/:eventId/history
+Authorization: Bearer <token_partner>
+```
+
+Retorna um array unificado com `ticket_status_history` e `audit_log`, ordenado por data decrescente. Apenas o partner dono do evento pode acessar (403 caso contrário).
+
 ### Tickets
 
 - Criados em lote pelo parceiro dono do evento.
@@ -202,6 +213,7 @@ Arquivos de apoio na raiz:
 | GET    | `/events`                               | Não  | Listar eventos             |
 | POST   | `/partners/events`                      | Sim  | Criar evento               |
 | GET    | `/partners/events`                      | Sim  | Listar eventos do parceiro |
+| GET    | `/partners/events/:eventId/history`     | Sim  | Histórico do evento        |
 | POST   | `/partners/events/:eventId/tickets`     | Sim  | Criar tickets              |
 | GET    | `/partners/events/:eventId/tickets`     | Sim  | Listar tickets             |
 | POST   | `/partners/events/reservations`         | Sim  | Reservar tickets           |

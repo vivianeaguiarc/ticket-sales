@@ -2,16 +2,23 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { registerMock, findByUserIdMock, createEventMock, findAllEventsMock, findEventByIdMock } =
-  vi.hoisted(() => {
-    return {
-      registerMock: vi.fn(),
-      findByUserIdMock: vi.fn(),
-      createEventMock: vi.fn(),
-      findAllEventsMock: vi.fn(),
-      findEventByIdMock: vi.fn()
-    }
-  })
+const {
+  registerMock,
+  findByUserIdMock,
+  createEventMock,
+  findAllEventsMock,
+  findEventByIdMock,
+  getEventHistoryMock
+} = vi.hoisted(() => {
+  return {
+    registerMock: vi.fn(),
+    findByUserIdMock: vi.fn(),
+    createEventMock: vi.fn(),
+    findAllEventsMock: vi.fn(),
+    findEventByIdMock: vi.fn(),
+    getEventHistoryMock: vi.fn()
+  }
+})
 
 vi.mock('../services/partner-service.js', () => {
   return {
@@ -28,6 +35,7 @@ vi.mock('../services/event-service.js', () => {
       create = createEventMock
       findAll = findAllEventsMock
       findById = findEventByIdMock
+      getHistory = getEventHistoryMock
     }
   }
 })
@@ -269,5 +277,151 @@ describe('PartnerController', () => {
 
     expect(findByUserIdMock).toHaveBeenCalledWith(1)
     expect(findEventByIdMock).not.toHaveBeenCalled()
+  })
+
+  test('deve retornar histórico do evento com sucesso', async () => {
+    const mockPartner = {
+      id: 99,
+      user_id: 1,
+      company_name: 'Minha Empresa'
+    }
+
+    const mockEvent = {
+      id: 1,
+      partner_id: 99,
+      name: 'Evento Teste'
+    }
+
+    const mockHistory = [
+      {
+        type: 'audit_log',
+        action: 'PURCHASE_CREATED',
+        entity_type: 'purchase',
+        entity_id: 3,
+        created_at: '2026-04-01T12:05:00.000Z'
+      },
+      {
+        type: 'ticket_status_history',
+        ticket_id: 1,
+        from_status: 'available',
+        to_status: 'reserved',
+        changed_at: '2026-04-01T12:00:00.000Z'
+      }
+    ]
+
+    findByUserIdMock.mockResolvedValue(mockPartner)
+    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventHistoryMock.mockResolvedValue(mockHistory)
+
+    const response = await request(app).get('/partners/events/1/history')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual(mockHistory)
+    expect(getEventHistoryMock).toHaveBeenCalledWith(1)
+  })
+
+  test('deve retornar 404 ao consultar histórico de evento inexistente', async () => {
+    const mockPartner = {
+      id: 99,
+      user_id: 1,
+      company_name: 'Minha Empresa'
+    }
+
+    findByUserIdMock.mockResolvedValue(mockPartner)
+    findEventByIdMock.mockResolvedValue(null)
+
+    const response = await request(app).get('/partners/events/999/history')
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ message: 'Event not found' })
+    expect(getEventHistoryMock).not.toHaveBeenCalled()
+  })
+
+  test('deve retornar 403 ao consultar histórico de evento de outro partner', async () => {
+    const mockPartner = {
+      id: 99,
+      user_id: 1,
+      company_name: 'Minha Empresa'
+    }
+
+    const mockEvent = {
+      id: 1,
+      partner_id: 123,
+      name: 'Evento de Outro Partner'
+    }
+
+    findByUserIdMock.mockResolvedValue(mockPartner)
+    findEventByIdMock.mockResolvedValue(mockEvent)
+
+    const response = await request(app).get('/partners/events/1/history')
+
+    expect(response.status).toBe(403)
+    expect(response.body).toEqual({ message: 'Not authorized' })
+    expect(getEventHistoryMock).not.toHaveBeenCalled()
+  })
+
+  test('deve retornar lista vazia quando não houver histórico', async () => {
+    const mockPartner = {
+      id: 99,
+      user_id: 1,
+      company_name: 'Minha Empresa'
+    }
+
+    const mockEvent = {
+      id: 1,
+      partner_id: 99,
+      name: 'Evento Teste'
+    }
+
+    findByUserIdMock.mockResolvedValue(mockPartner)
+    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventHistoryMock.mockResolvedValue([])
+
+    const response = await request(app).get('/partners/events/1/history')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual([])
+  })
+
+  test('deve validar ordenação decrescente do histórico retornado', async () => {
+    const mockPartner = {
+      id: 99,
+      user_id: 1,
+      company_name: 'Minha Empresa'
+    }
+
+    const mockEvent = {
+      id: 1,
+      partner_id: 99,
+      name: 'Evento Teste'
+    }
+
+    const mockHistory = [
+      {
+        type: 'audit_log',
+        action: 'PURCHASE_CREATED',
+        entity_type: 'purchase',
+        entity_id: 3,
+        created_at: '2026-04-01T12:05:00.000Z'
+      },
+      {
+        type: 'ticket_status_history',
+        ticket_id: 1,
+        from_status: 'available',
+        to_status: 'reserved',
+        changed_at: '2026-04-01T12:00:00.000Z'
+      }
+    ]
+
+    findByUserIdMock.mockResolvedValue(mockPartner)
+    findEventByIdMock.mockResolvedValue(mockEvent)
+    getEventHistoryMock.mockResolvedValue(mockHistory)
+
+    const response = await request(app).get('/partners/events/1/history')
+
+    expect(response.status).toBe(200)
+    expect(new Date(response.body[0].created_at).getTime()).toBeGreaterThan(
+      new Date(response.body[1].changed_at).getTime()
+    )
   })
 })
