@@ -26,6 +26,80 @@ const swaggerOptions: Options = {
     },
     security: [{ bearerAuth: [] }],
     paths: {
+      '/health': {
+        get: {
+          tags: ['Health'],
+          summary: 'Health check da API e do banco de dados',
+          security: [],
+          responses: {
+            '200': {
+              description: 'API saudável e banco conectado',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'ok' },
+                      database: { type: 'string', example: 'connected' },
+                      timestamp: { type: 'string', format: 'date-time' }
+                    }
+                  }
+                }
+              }
+            },
+            '503': {
+              description: 'Banco de dados indisponível',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'error' },
+                      database: { type: 'string', example: 'disconnected' },
+                      timestamp: { type: 'string', format: 'date-time' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/ready': {
+        get: {
+          tags: ['Health'],
+          summary: 'Readiness check para orquestradores',
+          security: [],
+          responses: {
+            '200': {
+              description: 'Aplicação pronta para receber tráfego',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      ready: { type: 'boolean', example: true }
+                    }
+                  }
+                }
+              }
+            },
+            '503': {
+              description: 'Aplicação não está pronta',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      ready: { type: 'boolean', example: false }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       '/auth/login': {
         post: {
           tags: ['Auth'],

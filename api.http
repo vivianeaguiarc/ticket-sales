@@ -10,6 +10,20 @@
 @baseUrl = http://localhost:3000
 
 ### =========================================================
+### 0. HEALTH CHECK (sem autenticação)
+### GET /health — verifica API + conexão MySQL
+### GET /ready — readiness para Kubernetes/Docker
+### =========================================================
+
+###
+# @name healthCheck
+GET {{baseUrl}}/health
+
+###
+# @name readinessCheck
+GET {{baseUrl}}/ready
+
+### =========================================================
 ### 1. CADASTRO DO PARCEIRO
 ### Rota pública — POST /partners/register
 ### =========================================================

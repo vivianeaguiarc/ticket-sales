@@ -5,6 +5,7 @@ import swaggerUi from 'swagger-ui-express'
 import { authRoutes } from './controller/auth-controller.js'
 import { customerRoutes } from './controller/customer-controller.js'
 import { eventsRoutes } from './controller/event-controller.js'
+import { healthRoutes } from './controller/health-controller.js'
 import { partnerRoutes } from './controller/partner-controller.js'
 import { purchaseRoutes } from './controller/purchase-controller.js'
 import { reservationRoutes } from './controller/reservation-controller.js'
@@ -15,6 +16,8 @@ import { UserService } from './services/user-service.js'
 export const app = express()
 
 app.use(express.json())
+
+app.use(healthRoutes)
 
 const unprotectedRoutes = [
   { method: 'POST', path: '/auth/login' },

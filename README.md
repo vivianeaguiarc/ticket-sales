@@ -62,6 +62,17 @@ Authorization: Bearer <token_partner>
 
 Retorna um array unificado com `ticket_status_history` e `audit_log`, ordenado por data decrescente. Apenas o partner dono do evento pode acessar (403 caso contrário).
 
+### Health e Readiness
+
+Endpoints públicos para monitoramento e orquestração (Kubernetes, Docker, load balancers):
+
+| Endpoint      | Uso           | Sucesso (200)                                        | Falha (503)                |
+| ------------- | ------------- | ---------------------------------------------------- | -------------------------- |
+| `GET /health` | Liveness + DB | `{ status: "ok", database: "connected", timestamp }` | `database: "disconnected"` |
+| `GET /ready`  | Readiness     | `{ ready: true }`                                    | `{ ready: false }`         |
+
+Ambos executam `SELECT 1` no MySQL para validar conexão real.
+
 ### Tickets
 
 - Criados em lote pelo parceiro dono do evento.
@@ -207,6 +218,8 @@ Arquivos de apoio na raiz:
 
 | Método | Rota                                    | Auth | Descrição                  |
 | ------ | --------------------------------------- | ---- | -------------------------- |
+| GET    | `/health`                               | Não  | Health check (API + MySQL) |
+| GET    | `/ready`                                | Não  | Readiness check            |
 | POST   | `/auth/login`                           | Não  | Login                      |
 | POST   | `/partners/register`                    | Não  | Cadastro parceiro          |
 | POST   | `/customers/register`                   | Não  | Cadastro cliente           |
@@ -403,6 +416,7 @@ pnpm build           # compilar TypeScript
 | Swagger                               | Básico (endpoints principais) |
 | Variáveis de ambiente                 | Parcial (hardcoded em código) |
 | Docker Compose (MySQL)                | Implementado                  |
+| Health / Readiness endpoints          | Implementado                  |
 | Deploy / CI                           | Não configurado               |
 
 **Maturidade:** projeto de portfólio **intermediário**, com fundamentos sólidos de backend e espaço claro para evolução em produção.

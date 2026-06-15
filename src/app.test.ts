@@ -40,6 +40,24 @@ describe('app routes', () => {
     })
   })
 
+  test('deve permitir acesso à rota /health sem token', async () => {
+    const response = await request(app).get('/health')
+
+    expect(response.status).not.toBe(401)
+    expect(response.body).not.toEqual({
+      message: 'No token provided'
+    })
+  })
+
+  test('deve permitir acesso à rota /ready sem token', async () => {
+    const response = await request(app).get('/ready')
+
+    expect(response.status).not.toBe(401)
+    expect(response.body).not.toEqual({
+      message: 'No token provided'
+    })
+  })
+
   test('deve permitir acesso à rota /auth/login sem token', async () => {
     const response = await request(app).post('/auth/login').send({
       email: 'testuser@example.com',
