@@ -369,4 +369,70 @@ describe('TicketController', () => {
       message: 'Purchase tickets not found'
     })
   })
+
+  test('deve retornar ticket por id com sucesso', async () => {
+    const ticket = { id: 5, event_id: 1, price: 100 }
+
+    findByIdMock.mockResolvedValue(ticket)
+
+    const response = await request(app).get('/partners/events/1/tickets/5')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual(ticket)
+  })
+
+  test('deve retornar 404 ao buscar ticket inexistente', async () => {
+    findByIdMock.mockResolvedValue(null)
+
+    const response = await request(app).get('/partners/events/1/tickets/999')
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ message: 'Ticket not found' })
+  })
+
+  test('deve retornar 409 ao cancelar compra já cancelada', async () => {
+    cancelPurchaseExecuteMock.mockRejectedValue(new Error('Purchase already cancelled'))
+
+    const response = await request(app).delete('/partners/events/purchases/10')
+
+    expect(response.status).toBe(409)
+    expect(response.body).toEqual({ message: 'Purchase already cancelled' })
+  })
+
+  test('deve retornar 400 ao cancelar compra com id inválido', async () => {
+    cancelPurchaseExecuteMock.mockRejectedValue(new Error('Purchase id is required'))
+
+    const response = await request(app).delete('/partners/events/purchases/0')
+
+    expect(response.status).toBe(400)
+    expect(response.body).toEqual({ message: 'Purchase id is required' })
+  })
+
+  test('deve retornar 404 ao comprar tickets não encontrados', async () => {
+    const customer = { id: 10, user_id: 1 }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
+    purchaseTicketExecuteMock.mockRejectedValue(new Error('One or more tickets not found'))
+
+    const response = await request(app)
+      .post('/partners/events/purchases')
+      .send({ ticket_ids: [999] })
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual({ message: 'One or more tickets not found' })
+  })
+
+  test('deve retornar 500 em erro inesperado na reserva', async () => {
+    const customer = { id: 10, user_id: 1 }
+
+    findCustomerByUserIdMock.mockResolvedValue(customer)
+    reserveTicketExecuteMock.mockRejectedValue(new Error('Unexpected'))
+
+    const response = await request(app)
+      .post('/partners/events/reservations')
+      .send({ ticket_ids: [1] })
+
+    expect(response.status).toBe(500)
+    expect(response.body).toEqual({ message: 'Internal server error' })
+  })
 })

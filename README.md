@@ -400,7 +400,7 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-Atualmente: **312 testes** cobrindo controllers, use cases, services, models e jobs.
+Atualmente: **334 testes** cobrindo controllers, use cases, services, models, jobs e fluxo HTTP integrado.
 
 ---
 

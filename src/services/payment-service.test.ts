@@ -43,5 +43,45 @@ describe('PaymentService', () => {
 
       randomSpy.mockRestore()
     })
+
+    test('deve lançar erro para valor inválido', async () => {
+      const paymentService = new PaymentService()
+
+      await expect(
+        paymentService.processPayment(
+          { name: 'A', email: 'a@a.com', address: 'Rua', phone: '1' },
+          0,
+          'card_token_123'
+        )
+      ).rejects.toThrow('Invalid amount')
+    })
+
+    test('deve lançar erro para token de cartão inválido', async () => {
+      const paymentService = new PaymentService()
+
+      await expect(
+        paymentService.processPayment(
+          { name: 'A', email: 'a@a.com', address: 'Rua', phone: '1' },
+          100,
+          'short'
+        )
+      ).rejects.toThrow('Invalid card token')
+    })
+
+    test('deve lançar erro quando pagamento simulado falhar', async () => {
+      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.1)
+
+      const paymentService = new PaymentService()
+
+      await expect(
+        paymentService.processPayment(
+          { name: 'A', email: 'a@a.com', address: 'Rua', phone: '1' },
+          100,
+          'card_token_123'
+        )
+      ).rejects.toThrow('Payment failed')
+
+      randomSpy.mockRestore()
+    })
   })
 })

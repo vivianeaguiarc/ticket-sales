@@ -8,7 +8,9 @@ const {
   getConnectionMock,
   userCreateMock,
   partnerCreateMock,
-  findByUserIdMock
+  findByUserIdMock,
+  findByIdMock,
+  findAllMock
 } = vi.hoisted(() => {
   return {
     beginTransactionMock: vi.fn(),
@@ -18,7 +20,9 @@ const {
     getConnectionMock: vi.fn(),
     userCreateMock: vi.fn(),
     partnerCreateMock: vi.fn(),
-    findByUserIdMock: vi.fn()
+    findByUserIdMock: vi.fn(),
+    findByIdMock: vi.fn(),
+    findAllMock: vi.fn()
   }
 })
 
@@ -44,7 +48,9 @@ vi.mock('../models/partner-model.js', () => {
   return {
     PartnerModel: {
       create: partnerCreateMock,
-      findByUserId: findByUserIdMock
+      findByUserId: findByUserIdMock,
+      findById: findByIdMock,
+      findAll: findAllMock
     }
   }
 })
@@ -244,6 +250,32 @@ describe('PartnerService', () => {
 
       expect(PartnerModel.findByUserId).toHaveBeenCalledWith(1)
       expect(result).toEqual(mockPartner)
+    })
+  })
+
+  describe('findById', () => {
+    test('deve buscar partner por id', async () => {
+      const mockPartner = { id: 10, company_name: 'Empresa' }
+
+      findByIdMock.mockResolvedValue(mockPartner)
+
+      const result = await partnerService.findById(10)
+
+      expect(PartnerModel.findById).toHaveBeenCalledWith(10)
+      expect(result).toEqual(mockPartner)
+    })
+  })
+
+  describe('findAll', () => {
+    test('deve listar todos os partners', async () => {
+      const partners = [{ id: 1 }, { id: 2 }]
+
+      findAllMock.mockResolvedValue(partners)
+
+      const result = await partnerService.findAll()
+
+      expect(PartnerModel.findAll).toHaveBeenCalled()
+      expect(result).toEqual(partners)
     })
   })
 })

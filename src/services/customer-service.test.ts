@@ -7,7 +7,8 @@ const {
   releaseMock,
   getConnectionMock,
   userCreateMock,
-  customerCreateMock
+  customerCreateMock,
+  findOneMock
 } = vi.hoisted(() => {
   return {
     beginTransactionMock: vi.fn(),
@@ -16,7 +17,8 @@ const {
     releaseMock: vi.fn(),
     getConnectionMock: vi.fn(),
     userCreateMock: vi.fn(),
-    customerCreateMock: vi.fn()
+    customerCreateMock: vi.fn(),
+    findOneMock: vi.fn()
   }
 })
 
@@ -41,7 +43,8 @@ vi.mock('../models/user-model.js', () => {
 vi.mock('../models/customer-model.js', () => {
   return {
     CustomerModel: {
-      create: customerCreateMock
+      create: customerCreateMock,
+      findOne: findOneMock
     }
   }
 })
@@ -214,6 +217,19 @@ describe('CustomerService', () => {
       expect(commitMock).not.toHaveBeenCalled()
       expect(rollbackMock).toHaveBeenCalledTimes(1)
       expect(releaseMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('findByUserId', () => {
+    test('deve buscar customer por userId', async () => {
+      const customer = { id: 5, user_id: 2 }
+
+      findOneMock.mockResolvedValue(customer)
+
+      const result = await customerService.findByUserId(2)
+
+      expect(findOneMock).toHaveBeenCalledWith({ where: { user_id: 2 } })
+      expect(result).toEqual(customer)
     })
   })
 })

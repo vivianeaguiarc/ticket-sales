@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 const {
   findByIdMock,
   createManyMock,
+  findAllTicketsMock,
+  findTicketByIdMock,
   beginTransactionMock,
   commitMock,
   rollbackMock,
@@ -13,6 +15,8 @@ const {
   return {
     findByIdMock: vi.fn(),
     createManyMock: vi.fn(),
+    findAllTicketsMock: vi.fn(),
+    findTicketByIdMock: vi.fn(),
     beginTransactionMock: vi.fn(),
     commitMock: vi.fn(),
     rollbackMock: vi.fn(),
@@ -51,7 +55,9 @@ vi.mock('../models/ticket-model.js', () => {
       available: 'available'
     },
     TicketModel: {
-      createMany: createManyMock
+      createMany: createManyMock,
+      findAll: findAllTicketsMock,
+      findById: findTicketByIdMock
     }
   }
 })
@@ -183,6 +189,48 @@ describe('TicketService', () => {
       expect(rollbackMock).toHaveBeenCalled()
       expect(commitMock).not.toHaveBeenCalled()
       expect(releaseMock).toHaveBeenCalled()
+    })
+  })
+
+  describe('findByEventId', () => {
+    test('deve retornar tickets do evento', async () => {
+      const tickets = [{ id: 1, event_id: 5 }]
+
+      findByIdMock.mockResolvedValue({ id: 5 })
+      findAllTicketsMock.mockResolvedValue(tickets)
+
+      const result = await ticketService.findByEventId(5)
+
+      expect(findByIdMock).toHaveBeenCalledWith(5)
+      expect(findAllTicketsMock).toHaveBeenCalledWith({ where: { event_id: 5 } })
+      expect(result).toEqual(tickets)
+    })
+
+    test('deve lançar erro se evento não existir', async () => {
+      findByIdMock.mockResolvedValue(null)
+
+      await expect(ticketService.findByEventId(999)).rejects.toThrow('Event not found')
+    })
+  })
+
+  describe('findById', () => {
+    test('deve retornar ticket quando pertencer ao evento', async () => {
+      const ticket = { id: 10, event_id: 5 }
+
+      findTicketByIdMock.mockResolvedValue(ticket)
+
+      const result = await ticketService.findById(5, 10)
+
+      expect(findTicketByIdMock).toHaveBeenCalledWith(10)
+      expect(result).toEqual(ticket)
+    })
+
+    test('deve retornar null quando ticket pertencer a outro evento', async () => {
+      findTicketByIdMock.mockResolvedValue({ id: 10, event_id: 99 })
+
+      const result = await ticketService.findById(5, 10)
+
+      expect(result).toBeNull()
     })
   })
 })
