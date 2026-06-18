@@ -1,6 +1,11 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 import { Database } from '../database.js'
+import {
+  mapPurchaseRowsToHistory,
+  type PurchaseWithTicketsRow
+} from '../shared/mappers/customer-history-mapper.js'
+import type { CustomerPurchaseHistoryItem } from '../shared/types/customer-history.js'
 
 export enum PurchaseStatus {
   pending = 'pending',
@@ -59,6 +64,39 @@ export class PurchaseModel {
     const [rows] = await db.execute<RowDataPacket[]>(query, [id])
 
     return rows.length ? new PurchaseModel(rows[0] as PurchaseModel) : null
+  }
+
+  static async findByCustomerIdWithTicketsAndEvents(
+    customerId: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<CustomerPurchaseHistoryItem[]> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const query = `
+      SELECT
+        p.id AS purchase_id,
+        p.status AS purchase_status,
+        p.total_amount,
+        p.purchase_date,
+        t.id AS ticket_id,
+        t.location AS ticket_location,
+        t.price AS ticket_price,
+        t.status AS ticket_status,
+        e.id AS event_id,
+        e.name AS event_name,
+        e.date AS event_date,
+        e.location AS event_location
+      FROM purchases p
+      INNER JOIN purchase_tickets pt ON pt.purchase_id = p.id
+      INNER JOIN tickets t ON t.id = pt.ticket_id
+      INNER JOIN events e ON e.id = t.event_id
+      WHERE p.customer_id = ?
+      ORDER BY p.purchase_date DESC, p.id, t.id
+    `
+
+    const [rows] = await db.execute<RowDataPacket[]>(query, [customerId])
+
+    return mapPurchaseRowsToHistory(rows as PurchaseWithTicketsRow[])
   }
 
   static async findAll(

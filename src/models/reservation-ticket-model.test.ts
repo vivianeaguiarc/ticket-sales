@@ -202,6 +202,58 @@ describe('ReservationTicketModel', () => {
     })
   })
 
+  describe('findByCustomerIdWithTicketAndEvent', () => {
+    it('deve retornar reservas enriquecidas com ticket e evento', async () => {
+      const reservationDate = new Date('2026-06-15T00:00:00.000Z')
+      const expiresAt = new Date('2026-06-15T00:05:00.000Z')
+      const eventDate = new Date('2027-08-01T10:00:00.000Z')
+
+      const rows = [
+        {
+          reservation_id: 1,
+          reservation_status: ReservationStatus.reserved,
+          reservation_date: reservationDate,
+          expires_at: expiresAt,
+          ticket_id: 1,
+          ticket_location: 'A1',
+          ticket_price: 100,
+          ticket_status: 'reserved',
+          event_id: 1,
+          event_name: 'Evento Final',
+          event_date: eventDate,
+          event_location: 'São Paulo'
+        }
+      ]
+
+      const executeMock = vi.fn().mockResolvedValue([rows])
+
+      vi.spyOn(Database, 'getInstance').mockReturnValue({
+        execute: executeMock
+      } as unknown as ReturnType<typeof Database.getInstance>)
+
+      const result = await ReservationTicketModel.findByCustomerIdWithTicketAndEvent(10)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE r.customer_id = ?'),
+        [10]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0]?.ticket.event.name).toBe('Evento Final')
+    })
+
+    it('deve retornar lista vazia quando customer não tiver reservas', async () => {
+      const executeMock = vi.fn().mockResolvedValue([[]])
+
+      vi.spyOn(Database, 'getInstance').mockReturnValue({
+        execute: executeMock
+      } as unknown as ReturnType<typeof Database.getInstance>)
+
+      const result = await ReservationTicketModel.findByCustomerIdWithTicketAndEvent(10)
+
+      expect(result).toEqual([])
+    })
+  })
+
   describe('markAsCancelled', () => {
     it('deve cancelar uma reservation reservada com sucesso', async () => {
       const executeMock = vi.fn().mockResolvedValue([{ affectedRows: 1 }])

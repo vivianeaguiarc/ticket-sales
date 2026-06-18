@@ -217,6 +217,49 @@ describe('PurchaseModel', () => {
     })
   })
 
+  describe('findByCustomerIdWithTicketsAndEvents', () => {
+    test('deve retornar compras enriquecidas com tickets e eventos', async () => {
+      const purchaseDate = new Date('2026-06-15T00:00:00.000Z')
+      const eventDate = new Date('2027-08-01T10:00:00.000Z')
+
+      const rows = [
+        {
+          purchase_id: 1,
+          purchase_status: PurchaseStatus.paid,
+          total_amount: 200,
+          purchase_date: purchaseDate,
+          ticket_id: 3,
+          ticket_location: 'A1',
+          ticket_price: 100,
+          ticket_status: 'sold',
+          event_id: 1,
+          event_name: 'Evento Final',
+          event_date: eventDate,
+          event_location: 'São Paulo'
+        }
+      ]
+
+      executeMock.mockResolvedValue([rows])
+
+      const result = await PurchaseModel.findByCustomerIdWithTicketsAndEvents(10)
+
+      expect(executeMock).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE p.customer_id = ?'),
+        [10]
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0]?.tickets[0]?.event.name).toBe('Evento Final')
+    })
+
+    test('deve retornar lista vazia quando customer não tiver compras', async () => {
+      executeMock.mockResolvedValue([[]])
+
+      const result = await PurchaseModel.findByCustomerIdWithTicketsAndEvents(10)
+
+      expect(result).toEqual([])
+    })
+  })
+
   describe('update', () => {
     test('deve atualizar uma purchase com sucesso', async () => {
       executeMock.mockResolvedValue([{ affectedRows: 1 }])

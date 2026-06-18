@@ -205,6 +205,26 @@ Authorization: Bearer {{tokenCustomer}}
 @purchaseId = {{createPurchase.response.body.id}}
 
 ### =========================================================
+### 10.1 HISTÓRICO DE COMPRAS DO CLIENTE
+### GET /customers/purchases — esperado: 200
+### =========================================================
+
+###
+# @name listCustomerPurchases
+GET {{baseUrl}}/customers/purchases
+Authorization: Bearer {{tokenCustomer}}
+
+### =========================================================
+### 10.2 HISTÓRICO DE RESERVAS DO CLIENTE
+### GET /customers/reservations — esperado: 200
+### =========================================================
+
+###
+# @name listCustomerReservations
+GET {{baseUrl}}/customers/reservations
+Authorization: Bearer {{tokenCustomer}}
+
+### =========================================================
 ### 11. CANCELAR COMPRA
 ### POST /partners/events/purchases/:id/cancel — esperado: 200
 ### Ciclo: sold → available

@@ -1,6 +1,11 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 import { Database } from '../database.js'
+import {
+  mapReservationRowsToHistory,
+  type ReservationWithTicketRow
+} from '../shared/mappers/customer-history-mapper.js'
+import type { CustomerReservationHistoryItem } from '../shared/types/customer-history.js'
 
 export enum ReservationStatus {
   reserved = 'reserved',
@@ -56,6 +61,38 @@ export class ReservationTicketModel {
     )
 
     return rows.length ? new ReservationTicketModel(rows[0] as ReservationTicketModel) : null
+  }
+
+  static async findByCustomerIdWithTicketAndEvent(
+    customerId: number,
+    options?: { connection?: PoolConnection }
+  ): Promise<CustomerReservationHistoryItem[]> {
+    const db = options?.connection ?? Database.getInstance()
+
+    const query = `
+      SELECT
+        r.id AS reservation_id,
+        r.status AS reservation_status,
+        r.reservation_date,
+        r.expires_at,
+        t.id AS ticket_id,
+        t.location AS ticket_location,
+        t.price AS ticket_price,
+        t.status AS ticket_status,
+        e.id AS event_id,
+        e.name AS event_name,
+        e.date AS event_date,
+        e.location AS event_location
+      FROM reservation_tickets r
+      INNER JOIN tickets t ON t.id = r.ticket_id
+      INNER JOIN events e ON e.id = t.event_id
+      WHERE r.customer_id = ?
+      ORDER BY r.reservation_date DESC, r.id
+    `
+
+    const [rows] = await db.execute<RowDataPacket[]>(query, [customerId])
+
+    return mapReservationRowsToHistory(rows as ReservationWithTicketRow[])
   }
 
   static async findAll(

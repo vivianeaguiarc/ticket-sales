@@ -140,6 +140,165 @@ const swaggerOptions: Options = {
           responses: { '201': { description: 'Cliente criado' } }
         }
       },
+      '/customers/purchases': {
+        get: {
+          tags: ['Customers'],
+          summary: 'Histórico de compras do cliente autenticado',
+          responses: {
+            '200': {
+              description: 'Lista de compras com tickets e eventos',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'integer', example: 1 },
+                        status: { type: 'string', example: 'paid' },
+                        total_amount: { type: 'number', example: 200 },
+                        purchase_date: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2026-06-15T00:00:00.000Z'
+                        },
+                        tickets: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'integer', example: 3 },
+                              location: { type: 'string', example: 'A1' },
+                              price: { type: 'number', example: 100 },
+                              status: { type: 'string', example: 'sold' },
+                              event: {
+                                type: 'object',
+                                properties: {
+                                  id: { type: 'integer', example: 1 },
+                                  name: { type: 'string', example: 'Evento Final' },
+                                  date: {
+                                    type: 'string',
+                                    format: 'date-time',
+                                    example: '2027-08-01T10:00:00.000Z'
+                                  },
+                                  location: { type: 'string', example: 'São Paulo' }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  example: [
+                    {
+                      id: 1,
+                      status: 'paid',
+                      total_amount: 200,
+                      purchase_date: '2026-06-15T00:00:00.000Z',
+                      tickets: [
+                        {
+                          id: 3,
+                          location: 'A1',
+                          price: 100,
+                          status: 'sold',
+                          event: {
+                            id: 1,
+                            name: 'Evento Final',
+                            date: '2027-08-01T10:00:00.000Z',
+                            location: 'São Paulo'
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            '400': { description: 'Usuário autenticado não é cliente' },
+            '401': { description: 'Token ausente ou inválido' }
+          }
+        }
+      },
+      '/customers/reservations': {
+        get: {
+          tags: ['Customers'],
+          summary: 'Histórico de reservas do cliente autenticado',
+          responses: {
+            '200': {
+              description: 'Lista de reservas com ticket e evento',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'integer', example: 1 },
+                        status: { type: 'string', example: 'reserved' },
+                        reservation_date: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2026-06-15T00:00:00.000Z'
+                        },
+                        expires_at: {
+                          type: 'string',
+                          format: 'date-time',
+                          example: '2026-06-15T00:05:00.000Z'
+                        },
+                        ticket: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'integer', example: 1 },
+                            location: { type: 'string', example: 'A1' },
+                            price: { type: 'number', example: 100 },
+                            status: { type: 'string', example: 'reserved' },
+                            event: {
+                              type: 'object',
+                              properties: {
+                                id: { type: 'integer', example: 1 },
+                                name: { type: 'string', example: 'Evento Final' },
+                                date: {
+                                  type: 'string',
+                                  format: 'date-time',
+                                  example: '2027-08-01T10:00:00.000Z'
+                                },
+                                location: { type: 'string', example: 'São Paulo' }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  example: [
+                    {
+                      id: 1,
+                      status: 'reserved',
+                      reservation_date: '2026-06-15T00:00:00.000Z',
+                      expires_at: '2026-06-15T00:05:00.000Z',
+                      ticket: {
+                        id: 1,
+                        location: 'A1',
+                        price: 100,
+                        status: 'reserved',
+                        event: {
+                          id: 1,
+                          name: 'Evento Final',
+                          date: '2027-08-01T10:00:00.000Z',
+                          location: 'São Paulo'
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            '400': { description: 'Usuário autenticado não é cliente' },
+            '401': { description: 'Token ausente ou inválido' }
+          }
+        }
+      },
       '/partners/events': {
         post: {
           tags: ['Events'],
